@@ -106,4 +106,4 @@ def get_frames(id: str):
     
     propa_session = sessions[session_id]
 
-    return {"success": True, "frames": propa_session.frames.tolist()}
+    return {"success": True, "frames": propa_session.frames.tolist()} # type: ignore
