@@ -1,0 +1,23 @@
+# mac stuff
+.DS_Store
+
+# vscode stuff
+.vscode/
+
+# python stuff
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+virenv/
+venv/
+sam2-fuse-env
+
+# program stuff
+output_video.mp4
+stock_video_soccar.mp4
+models/
+decord/
+test.py
+config.json
+test_propas.py
