@@ -179,17 +179,21 @@ class Session:
         # regenerate generator
         self.generator = self.predictor.propagate_in_video(self.state) # type: ignore
 
-        # next :O
+        # next :O - this is temporary, will rework later
         result = None
         for _ in range(frame_idx + 1):
             frame_idx_out, obj_ids, mask_logits = next(self.generator)
             result = (frame_idx_out, obj_ids, mask_logits)
 
-        mask = (result[2][0] > 0).cpu().numpy() # type: ignore
-        mask = mask.squeeze()
-        mask_overlay = Image.fromarray((mask * 255).astype(np.uint8))
-        buffer = io.BytesIO()
-        mask_overlay.save(buffer, format="PNG")
-        mask_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        mask = (result[2][0] > 0).cpu().numpy().squeeze() # type: ignore
 
-        return {"frame_idx": result[0], "mask_b64": mask_b64} # type: ignore
+        original = Image.fromarray(frame)
+        mask_img = Image.fromarray((mask * 255).astype(np.uint8))
+        result = Image.composite(original, Image.new("RGB", original.size, 0), mask_img)
+
+        buffer = io.BytesIO()
+        result.save(buffer, format="PNG") # png for transparency
+        mask_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        
+
+        return {"frame_idx": frame_idx, "mask_b64": mask_b64} # type: ignore
