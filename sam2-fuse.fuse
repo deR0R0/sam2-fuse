@@ -1,0 +1,302 @@
+--[[--
+   sam2-fuse.fuse
+
+  Davinci Resolve plugin built by Robert Zhao.
+  LICENSE: MIT - DO NOT DISTRUBUTE WITHOUT CREDIT!
+--]]--
+
+DEBUG = true
+
+FuRegisterClass('sam2fuse', CT_Tool, {
+    REGS_Category = "Fuses",
+    REGS_OpIconString = '',
+    REGS_OpDescription = 'A Davinci resolve fuse that allows for easy masking',
+    REG_OpNoMask = true,
+    REG_NoBlendCtrls = true,
+    REG_NoObjMatCtrls = true,
+    REG_NoMotionBlurCtrls = true,
+    REG_Source_GlobalCtrls = true,
+    REG_Source_SizeCtrls = true,
+    REG_Source_AspectCtrls = true,
+    REG_Source_DepthCtrls = true,
+    REG_TimeVariant = true,
+    REG_Fuse_NoEdit = true,
+    REG_Fuse_NoReload = not DEBUG,
+})
+
+local json = require("json")
+CONFIG = nil
+
+PROGRAM_CONFIG = {
+    port = 19078,
+    session_id = -1,
+}
+
+
+TOTAL_SPACERS = 0
+
+function Log(msg)
+    print("SAM2Fuse | ", msg)
+end
+
+-- we need this because windows decides to open an entirely new 
+-- terminal everytime.........
+local function POpen(cmd)
+    if package.config:sub(1,1) == "\\" then
+        return io.popen('powershell -WindowStyle Hidden -Command "' .. cmd .. '"')
+    else
+        return io.popen(cmd)
+    end
+end
+
+function SendRequest(url, type, ...)
+    -- make the args
+    local args = { ... }
+    local argsString = ""
+    for i, v in ipairs(args) do
+        argsString = argsString .. v
+    end
+
+    -- send the actual request
+    Log("Sending a request to " .. url)
+    
+    -- construct the curl request
+    local handle = nil
+    if argsString ~= "" then
+        handle = POpen("curl -s -X " .. type .. " " .. argsString .. " " .. url)
+        Log("The value of argsString is: " .. argsString)
+    else
+        handle = POpen("curl -s -X " .. type .. " " .. url)
+    end
+
+    if handle == nil then
+        Log("No handle. Constructed the handle incorrectly probs.")
+        return "err"
+    end
+
+    -- read result
+    local result = handle:read("*a")
+
+    handle:close()
+
+    if result == nil or result == "" then
+        Log("Got an empty message. Probably means the server isn't running...")
+        return "empty"
+    end
+
+    Log("Got result: " .. result)
+    return result
+end
+
+function EnsureSAM2Running()
+    -- to make sure the sam2 server is running
+    local result = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port, "GET")
+    if result == "empty" then
+        Log("Woah, server isn't running. Starting it up!")
+
+        -- get our config and find the python path
+        if CONFIG == nil then
+            Log("Can't boot up server because config.json is missing. Has the user ran the setup yet??")
+            return
+        end
+
+        local py_path = CONFIG.python_path -- this python path includes our virtual environment modules too
+        local directory = debug.getinfo(1, "S").source:match("@?(.*[\\/])")
+
+        local cd_command = "cd \"" .. directory .. "\" && "
+        local py_command = "\"" .. py_path .. "\" -m uvicorn src.server:app --port " .. PROGRAM_CONFIG.port -- lets just hope this port isn't taken...
+        local command = cd_command .. py_command .. " &"
+
+        Log("Running server launch command: " .. command)
+
+        local handle = POpen(command)
+
+        -- after booting up the server, we need to send a heartbeat init request!
+        local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/init", "POST")
+        Log("Response after initing heartbeat: " .. response)
+
+        if handle then handle:close() end
+    else
+        Log("The server is already running. No need to do anything :)")
+    end
+end
+
+function LoadConfig()
+    local directory = debug.getinfo(1, "S").source:match("@?(.*[\\/])") -- use regex to find the correct directory
+    local configFile = io.open(directory .. "config.json", "r")
+
+    if configFile == nil then
+        Log("Failed to load config. Make sure the user has ran the setup.")
+        return "no_config"
+    end
+
+    local content = configFile:read("*a")
+    configFile:close()
+    CONFIG = json.decode(content)
+    Log("Got config successfully!")
+end
+
+function GetModels()
+    if CONFIG == nil then
+        Log("Cannot load models because config is empty...")
+        return
+    end
+
+    local avail_models = {}
+
+    local models = CONFIG.models
+
+    for i, model_type in ipairs({"sam2.1_hiera_large.pt", "sam2.1_hiera_base_plus.pt", "sam2.1_hiera_small.pt", "sam2.1_hiera_tiny.pt"}) do
+        if models[model_type] ~= nil then
+            Log("Got model: " .. model_type)
+            table.insert(avail_models, model_type:match("^sam2%.1_hiera_(.-)%.pt$"))
+        end 
+    end
+
+    return avail_models
+end
+
+function CreateSpacer()
+    self:AddInput("", "Spacer" .. TOTAL_SPACERS, {
+        LINKID_DataType = "Number",
+        INPID_InputControl = "LabelControl",
+        INP_External = false,
+        INP_Passive = true,
+    })
+    TOTAL_SPACERS = TOTAL_SPACERS + 1
+end
+
+
+
+function Create()
+    -- load config
+    LoadConfig()
+
+    -- after the node is created, we want to start up a new session.
+    EnsureSAM2Running()
+
+    local models = GetModels()
+
+
+    -- create our ui components
+
+    InConfigLabel = self:AddInput("Config Group", "CGroup", {
+        LINKID_DataType = "Number",
+        INPID_InputControl = "LabelControl",
+        LBLC_DropDownButton = true,
+        LBLC_NumInputs = 2,
+        INP_Default = 1
+    })
+
+    ModelLabel = self:AddInput("Warning: large model uses a lot of RAM!", "ModelWarning", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "LabelControl",
+        INP_External = false,
+        INP_Passive = true,
+    })
+
+    -- thanks akascape for this! - load models
+    if models ~= nil and #models > 0 then
+        InModel = self:AddInput("Models", "ModelsDropdown", {
+            LINKID_DataType = "Number",
+            INPID_InputControl = "ComboControl",
+            INP_Default = 0.0,
+            INP_Integer = true,
+            INP_External = false,
+        })
+
+        for _, label in ipairs(models) do
+            InModel:SetAttrs({ CCS_AddString = label })
+        end
+    end
+
+    -- our objects
+    InObjOneLabel = self:AddInput("Object 1 Tracking", "ObjOneGroup", {
+        LINKID_DataType = "Number",
+        INPID_InputControl = "LabelControl",
+        LBLC_DropDownButton = true,
+        LBLC_NumInputs = 8,
+        INP_Default = 1
+    })
+
+    InObjOneEnable = self:AddInput("Enabled", "ObjOneEnabled", {
+        LINKID_DataType = "Number",
+        INPID_InputControl = "CheckboxControl",
+        INP_Integer = true,
+        INP_Default = 1.0,
+        ICD_Width = 1,
+        INP_External = false,
+        INP_Passive = true
+    })
+
+    CreateSpacer()
+
+    -- we're going to have a dropdown of all the refinements
+    InObjOnePoints = self:AddInput("Points", "ObjOnePoints", {
+        LINKID_DataType = "Number",
+        INPID_InputControl = "ComboControl",
+        INP_Default = 0.0,
+        INP_Integer = true,
+    })
+
+    InObjOnePointsDelete = self:AddInput("Delete Point", "ObjOneDelPoint", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "ButtonControl",
+        ICD_Width = 1,
+        INP_DoNotifyChanged = true,
+        INP_External = false,
+    })
+
+    CreateSpacer()
+
+    InObjOneAddPointLabel = self:AddInput("Center the crosshair and add your refinement points", "ObjOneAddPointLabel", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "LabelControl",
+        INP_External = false,
+        INP_Passive = true,
+        ICD_Width = 1,
+    })
+
+    InObjOneOffset = self:AddInput("Center", "ObjOneCenter", {
+        LINKID_DataType = "Point",
+        INPID_InputControl = "OffsetControl",
+        INPID_PreviewControl = "CrosshairControl",
+    })
+
+    InObjOneFButton = self:AddInput("Add Foreground", "ObjOneFButton", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "ButtonControl",
+        ICD_Width = 0.5,
+        INP_DoNotifyChanged = true,
+        INP_External = false,
+    })
+
+    InObjOneBButton = self:AddInput("Add Background", "ObjOneBButton", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "ButtonControl",
+        ICD_Width = 0.5,
+        INP_DoNotifyChanged = true,
+        INP_External = false,
+    })
+
+    -- in and out images
+    InImage = self:AddInput("Input", "Input", {
+        LINKID_DataType = "Image",
+        LINK_Main = 1,
+    })
+
+
+    OutImage = self:AddOutput("Output", "Output", {
+        LINKID_DataType = "Image",
+        LINK_Main = 1,
+    })
+
+
+    -- create a request to create a session
+end
+
+
+function Process(req)
+    local img = InImage:GetValue(req)
+    OutImage:Set(req, img)
+end

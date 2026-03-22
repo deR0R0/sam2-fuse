@@ -8,7 +8,7 @@ License: MIT License
 
 from datetime import datetime
 from enum import Enum
-import subprocess, os, sys, venv
+import subprocess, os, sys, venv, shutil
 
 class ExitCodes(Enum):
     NOTHING = 0
@@ -261,6 +261,23 @@ class Setup:
                 self.install_sam2_models(["large", "base", "small", "tiny"])
 
 
+    def install_lua_json(self, platform: str):
+        folder = ""
+        lua_file = "json.lua"
+
+        if platform.lower() == "darwin":
+            folder = os.path.expanduser("~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Modules/Lua/json.lua")
+        elif platform.lower() == "windows":
+            folder = os.path.join(os.environ["PROGRAMDATA"], "Blackmagic Design", "DaVinci Resolve", "Fusion", "Modules", "Lua", "json.lua")
+
+        if folder == "":
+            self.error("There was a problem finding the path of the davinci resolve fusion modules folder. Please install 'json.lua' manually.")
+            self.exit_codes = ExitCodes.INSTALLATION_FAILED
+            self.exit_reason = "Problem finding path of davinci resolve fusion modules folder."
+            return
+        
+        os.makedirs(os.path.dirname(folder), exist_ok=True)
+        shutil.copy(lua_file, folder)
 
     
     def install(self):
@@ -317,6 +334,10 @@ class Setup:
         if self.exit_codes == ExitCodes.NOTHING:
             self.exit_codes = ExitCodes.SUCCESS
             self.exit_reason = "Python dependencies installed successfully."
+
+
+        # install lua sht. i hate this
+        self.install_lua_json(self.platform)
 
     def install_models(self):
         self.log("Installing SAM2 models...")

@@ -17,7 +17,7 @@ def test_new():
 def test_video():
     # we need to strip all the image frames from this, encode to base64, then send it to our api
     # then use that base64 to decode and put it all together
-    cap = cv2.VideoCapture("./test_video.mp4")
+    cap = cv2.VideoCapture("./1000014181.mp4")
 
     if not cap.isOpened():
         raise Exception("Error opening video file")
