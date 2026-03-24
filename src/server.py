@@ -104,7 +104,7 @@ async def propagate_start(id: str, bg_tasks: BackgroundTasks):
 
     return {"success": True, "message": "Started video propagation"}
 
-@app.post("/session{id}/propagate/stop")
+@app.post("/session/{id}/propagate/stop")
 async def propagate_stop(id: str):
     session_id = int(id)
     if session_id not in sessions:
