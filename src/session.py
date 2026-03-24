@@ -142,6 +142,9 @@ class Session:
         # make sure we have video state
         self.init_state()
 
+        # regenerate generator
+        self.generator = self.predictor.propagate_in_video(self.state) # type: ignore
+
         for frame_idx in range(frames_count):
             # attempt to get that frame of video
             frame: np.ndarray = np.array([])
@@ -150,9 +153,6 @@ class Session:
             else:
                 print("Can't get the frame. Is it uploaded?")
                 return
-
-            # regenerate generator
-            self.generator = self.predictor.propagate_in_video(self.state) # type: ignore
 
             result = None
 
