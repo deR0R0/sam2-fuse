@@ -89,8 +89,33 @@ async def add_point(id: str, param: AddPoint):
     return {"success": True, "message": "Added new point."}
 
 @app.post("/session/{id}/propagate/start")
-async def propagate_start(id: str):
+async def propagate_start(id: str, bg_tasks: BackgroundTasks):
+    session_id = int(id)
+    if session_id not in sessions:
+        return {"success": False, "message": "Session not found"}
     
+    session = sessions[session_id]
+
+    # make sure the stop propagation is set to false
+    session.stop_propagation = False
+    
+    # send the propagation off to a background task
+    bg_tasks.add_task(session.propagate)
+
+    return {"success": True, "message": "Started video propagation"}
+
+@app.post("/session{id}/propagate/stop")
+async def propagate_stop(id: str):
+    session_id = int(id)
+    if session_id not in sessions:
+        return {"success": False, "message": "Session not found"}
+    
+    session = sessions[session_id]
+
+    # stop propagation by setting the reference var to True
+    session.stop_propagation = True
+
+    return {"success": True, "message": "Probably stopped video propagation"}
 
 
 @app.get("/session/all")
