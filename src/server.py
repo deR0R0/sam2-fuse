@@ -17,7 +17,7 @@ import os
 import signal
 
 from src.configurer import Configurer
-from src.session import Session, SessionStatus, Point
+from src.session import Session, Point
 
 app = FastAPI()
 configurer = Configurer()
