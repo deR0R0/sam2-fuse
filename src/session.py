@@ -184,9 +184,7 @@ class Session:
             mask = (result[2][0] > 0).cpu().numpy().squeeze() # type: ignore
 
             # combine the masks together
-            original = Image.fromarray(frame)
             mask_img = Image.fromarray((mask * 255).astype(np.uint8))
-            result = Image.composite(original, Image.new("RGB", original.size, 0), mask_img)
 
             # instead of returning in the api, we save to disk instead
-            result.save(f"{self.directory}output/{frame_idx}.png")
+            mask_img.save(f"{self.directory}output/{frame_idx}.png")
