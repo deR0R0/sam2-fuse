@@ -89,7 +89,8 @@ async def add_point(id: str, param: AddPoint):
     return {"success": True, "message": "Added new point."}
 
 @app.post("/session/{id}/propagate/start")
-async def propagate_start(id: str)
+async def propagate_start(id: str):
+    
 
 
 @app.get("/session/all")

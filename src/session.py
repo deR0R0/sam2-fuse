@@ -49,6 +49,7 @@ class Session:
         self.predictor = None
         self.state = None
         self.generator = None
+        self.stop_propagation: bool = False
 
         self.directory: str = f"./processing/{session_id}/"
 
@@ -146,6 +147,11 @@ class Session:
         self.generator = self.predictor.propagate_in_video(self.state) # type: ignore
 
         for frame_idx in range(frames_count):
+            # check for if we should stop propagation
+            if self.stop_propagation:
+                self.stop_propagation = True
+                break
+
             # attempt to get that frame of video
             frame: np.ndarray = np.array([])
             if os.path.exists(f"./processing/{str(self.session_id)}/input/{frame_idx}.jpg"):
