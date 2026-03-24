@@ -79,12 +79,13 @@ async def add_point(id: str, param: AddPoint):
     session = sessions[session_id]
 
     point = Point(
+        param.frame,
         (param.x, param.y),
         param.obj_id,
         param.add
     )
 
-    session.add_points(param.frame, point)
+    session.add_point(param.frame, point)
 
     return {"success": True, "message": "Added new point."}
 

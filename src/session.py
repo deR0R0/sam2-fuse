@@ -19,14 +19,16 @@ import torch, os, io, base64, threading
 configurer = Configurer()
 
 class Point:
-    def __init__(self, coord: tuple[int, int], obj_id: int, add: bool = True):
+    def __init__(self, frame_idx: int, coord: tuple[int, int], obj_id: int, add: bool = True):
         """
         Creates a point that stores a buncha info.
 
+        :frame_idx: The frame "id" of this point
         :coord: Stores the x and y coord as a tuple
         :obj_id: THe object this point is supposed to track
         :add: The type of point: True = foreground (keep) False = background (exclude)
         """
+        self.frame_idx: int = frame_idx
         self.coord: np.ndarray = np.array([[coord[0], coord[1]]], dtype=np.float32)
         self.obj_id: int = obj_id
         self.type: np.ndarray = np.array([1]) if add else np.array([0])
@@ -49,6 +51,7 @@ class Session:
         self.predictor = None
         self.state = None
         self.generator = None
+        self.points: dict[int, Point] = {}
         self.stop_propagation: bool = False
 
         self.directory: str = f"./processing/{session_id}/"
@@ -110,7 +113,7 @@ class Session:
         self.predictor = self.predictor.to(self.device)
         print("Successfully created the video propagator")
 
-    def add_points(self, frame: int, point: Point) -> None:
+    def add_point(self, frame: int, point: Point) -> None:
         """
         Adds points to the session for later video propagator use. I plan on making this return a preview mask in the future.
         
@@ -118,18 +121,23 @@ class Session:
         :point: The point coords
         """
 
-        self.init_state()
-
-        self.predictor.add_new_points_or_box( # type: ignore
-            self.state,
-            frame_idx = frame,
-            obj_id = point.obj_id,
-            points = point.coord,
-            labels = point.type
-        )
+        self.points[frame] = point
         
     def init_state(self):
+        """
+        Inits the video state and then actually adds the points
+        """
         self.state = self.predictor.init_state(self.directory + "input/") # type: ignore
+
+        for point in self.points.keys():
+            point = self.points[point]
+            self.predictor.add_new_points_or_box( # type: ignore
+                self.state,
+                frame_idx = point.frame_idx,
+                obj_id = point.obj_id,
+                points = point.coord,
+                labels = point.type
+            )
 
     def propagate(self):
         """
@@ -140,15 +148,21 @@ class Session:
 
         frames_count: int = len(os.listdir(f"{self.directory}input/"))
 
+        print("Initing state...")
+
         # make sure we have video state
         self.init_state()
+
+        print("Creating video generator...")
 
         # regenerate generator
         self.generator = self.predictor.propagate_in_video(self.state) # type: ignore
 
         for frame_idx in range(frames_count):
+            print("Processing frame ", frame_idx)
             # check for if we should stop propagation
             if self.stop_propagation:
+                print("Stopping frame propagation because user wanted to.")
                 self.stop_propagation = True
                 break
 

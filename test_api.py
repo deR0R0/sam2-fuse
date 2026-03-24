@@ -40,8 +40,8 @@ def test_video():
         if not success:
             continue
 
-        img = Image.fromarray(buffer)
-        img.save(f"../processing/{session_id}/input/{frame_count}.jpg")
+        img = Image.open(io.BytesIO(buffer.tobytes()))
+        img.save(f"./processing/{session_id}/input/{frame_count}.jpg")
 
         frame_count += 1
 
@@ -54,7 +54,7 @@ def test_video():
 
     # add the first point
     add: bool = point_stuff[2].lower() == "y"
-    response = httpx.post(f"http://localhost:8000/session/{session_id}/point/add", json={ "frame": 0, "obj_id": 1, "x": int(point_stuff[0]), "y": int(point_stuff[1]), "add": add })
+    response = httpx.post(f"http://localhost:8000/session/{session_id}/point/add", json={ "frame": 0, "obj_id": 1, "x": int(point_stuff[0]), "y": int(point_stuff[1]), "add": add }, timeout=180)
     print("Response after adding point: ", response)
 
     if response.status_code == 500:

@@ -18,7 +18,6 @@ output_video.mp4
 stock_video_soccar.mp4
 models/
 decord/
-test.py
 config.json
-test_propas.py
 copy.sh
+processing/
