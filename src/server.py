@@ -26,7 +26,6 @@ last_heartbeat = time.time()
 sessions: dict[int, Session] = {}
 
 class New(BaseModel):
-    initial_image: str
     model: str
 
 class AddPoint(BaseModel):
@@ -65,9 +64,7 @@ def check_heartbeat():
 async def new_session(param: New):
     session_id: int = int(uuid4()) % (10 ** 8) # generate a random 8 digit session id
 
-    np_img = base64_to_numpy(param.initial_image)
-
-    propa_session = Session(session_id, param.model, np_img)
+    propa_session = Session(session_id, param.model)
 
     sessions[session_id] = propa_session
 
@@ -91,19 +88,8 @@ async def add_point(id: str, param: AddPoint):
 
     return {"success": True, "message": "Added new point."}
 
-@app.post("/session/{id}/frame/next")
-async def propagate_next(id: str, param: PropagateNext):
-    session_id = int(id)
-    if session_id not in sessions:
-        return {"success": False, "message": "Session not found"}
-    
-    session = sessions[session_id]
-
-    numpy_img = base64_to_numpy(param.frame_data)
-
-    mask_dict = session.propagate_forward(param.frame, numpy_img)
-    
-    return {"success": True, "frame_idx": mask_dict["frame_idx"], "mask_b64": mask_dict["mask_b64"]}
+@app.post("/session/{id}/propagate/start")
+async def propagate_start(id: str)
 
 
 @app.get("/session/all")

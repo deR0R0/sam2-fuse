@@ -166,7 +166,11 @@ function CreateSpacer()
     TOTAL_SPACERS = TOTAL_SPACERS + 1
 end
 
+function CreateNewSession()
+    -- send a request and yeah
+    local handle = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port, "POST")
 
+end
 
 function Create()
     -- load config

@@ -14,15 +14,9 @@ from sam2 import sam2_video_predictor
 from sam2.build_sam import build_sam2_video_predictor
 from src.configurer import Configurer
 import numpy as np
-import torch, os, io, base64
+import torch, os, io, base64, threading
 
 configurer = Configurer()
-
-class SessionStatus(Enum):
-    UNKNOWN = 0
-    WAITING_FOR_FRAME = 1
-    PROCESSING = 2
-    DONE_PROCESSING = 3
 
 class Point:
     def __init__(self, coord: tuple[int, int], obj_id: int, add: bool = True):
@@ -38,7 +32,7 @@ class Point:
         self.type: np.ndarray = np.array([1]) if add else np.array([0])
 
 class Session:
-    def __init__(self, session_id: int, model: str, first_frame: np.ndarray) -> None:
+    def __init__(self, session_id: int, model: str) -> None:
         """
         Creates a new session for video processing.
 
@@ -55,25 +49,20 @@ class Session:
         self.predictor = None
         self.state = None
         self.generator = None
-        # Keep frames as a sequence of individual frame arrays.
-        self.frames: list[np.ndarray] = [first_frame]
-        self.points: dict[int, list[Point]] = {} # points are stored as: { idx: [Point, Point] }
-        self.status: SessionStatus = SessionStatus.WAITING_FOR_FRAME
 
-        self.directory: str = f"./{session_id}/"
+        self.directory: str = f"./processing/{session_id}/"
 
         self.create_video_propagator()
-        self._make_directory_with_first_frame()
+        self._make_directory()
 
-    def _make_directory_with_first_frame(self):
+    def _make_directory(self):
         """
         This is required to make the directory full of JPEG files...
         """
 
-        os.makedirs(f"./{str(self.session_id)}", exist_ok=True)
-
-        # save as a jpg
-        Image.fromarray(self.frames[0]).save(f"./{str(self.session_id)}/{0}.jpg")
+        os.makedirs(f"./processing/{str(self.session_id)}/input/", exist_ok=True)
+        os.makedirs(f"./processing/{str(self.session_id)}/output/", exist_ok=True)
+        
 
     def _determine_config_file(self) -> str:
         if "large" in self.model:
@@ -137,63 +126,47 @@ class Session:
             points = point.coord,
             labels = point.type
         )
-
-        # we have to keep track of our own points because
-        # sam2, for whatever reason, doesn't allow us to
-        # remove a specific point...
-        if frame in self.points:
-            self.points[frame].append(point)
-        else:
-            self.points[frame] = [point]
         
     def init_state(self):
-        self.state = self.predictor.init_state(self.directory) # type: ignore
+        self.state = self.predictor.init_state(self.directory + "input/") # type: ignore
 
-    def propagate_forward(self, frame_idx: int, frame: np.ndarray):
+    def propagate(self):
         """
-        Takes in a frame of the video as a base64 thing, save it as a png in a temp directory, then tell the propagator to process it.
-
-        :frame: The next frame of the video
+        Will propagate through the session id's processing directory.
         """
 
-        os.makedirs(f"./{str(self.session_id)}", exist_ok=True)
+        self._make_directory() # make sure directory is made
 
-        self.frames.append(frame)
-
-        # save as a jpg
-        Image.fromarray(frame).save(f"./{str(self.session_id)}/{str(frame_idx)}.jpg")
+        frames_count: int = len(os.listdir(f"{self.directory}input/"))
 
         # make sure we have video state
         self.init_state()
 
-        for f_idx, points in self.points.items():
-            for point in points:
-                self.predictor.add_new_points_or_box( # type: ignore
-                    self.state,
-                    frame_idx=f_idx,
-                    obj_id=point.obj_id,
-                    points=point.coord,
-                    labels=point.type
-                )
+        for frame_idx in range(frames_count):
+            # attempt to get that frame of video
+            frame: np.ndarray = np.array([])
+            if os.path.exists(f"./processing/{str(self.session_id)}/input/{frame_idx}.jpg"):
+                frame = np.array(Image.open(f"./processing/{str(self.session_id)}/input/{frame_idx}.jpg").convert("RGB"))
+            else:
+                print("Can't get the frame. Is it uploaded?")
+                return
 
-        # regenerate generator
-        self.generator = self.predictor.propagate_in_video(self.state) # type: ignore
+            # regenerate generator
+            self.generator = self.predictor.propagate_in_video(self.state) # type: ignore
 
-        # next :O - this is temporary, will rework later
-        result = None
-        for _ in range(frame_idx + 1):
+            result = None
+
+            # use video propagator
             frame_idx_out, obj_ids, mask_logits = next(self.generator)
             result = (frame_idx_out, obj_ids, mask_logits)
 
-        mask = (result[2][0] > 0).cpu().numpy().squeeze() # type: ignore
+            # create a mask
+            mask = (result[2][0] > 0).cpu().numpy().squeeze() # type: ignore
 
-        original = Image.fromarray(frame)
-        mask_img = Image.fromarray((mask * 255).astype(np.uint8))
-        result = Image.composite(original, Image.new("RGB", original.size, 0), mask_img)
+            # combine the masks together
+            original = Image.fromarray(frame)
+            mask_img = Image.fromarray((mask * 255).astype(np.uint8))
+            result = Image.composite(original, Image.new("RGB", original.size, 0), mask_img)
 
-        buffer = io.BytesIO()
-        result.save(buffer, format="PNG") # png for transparency
-        mask_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-        
-
-        return {"frame_idx": frame_idx, "mask_b64": mask_b64} # type: ignore
+            # instead of returning in the api, we save to disk instead
+            result.save(f"{self.directory}output/{frame_idx}.png")
