@@ -173,6 +173,12 @@ function CreateSpacer()
 end
 
 function CreateNewSession(req)
+    -- if you already exist, delete the old session
+    if PROGRAM_CONFIG.session_id ~= -1 then
+        local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/delete", "POST")
+        Log("Got response: " .. response .. " after deleting old session")
+    end
+
     -- make json data
     local newRequestBody = {
         model = "sam2.1_hiera_" .. MODELS[InModel:GetValue(req).Value + 1] .. ".pt"
