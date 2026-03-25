@@ -15,6 +15,7 @@ import time
 import sys
 import os
 import signal
+import gc
 
 from src.configurer import Configurer
 from src.session import Session, Point
@@ -136,6 +137,19 @@ async def cleanup_session(id: str):
 
     return {"success": True, "message": "Cleaned up some resources"}
 
+@app.post("/session/{id}/delete")
+async def delete(id: str):
+    session_id = int(id)
+    if session_id not in sessions:
+        return {"success": False, "message": "Session not found"}
+    
+    session = sessions[session_id]
+
+    session.delete()
+
+    # remove from the dictionary and force a python garbage collection
+    del sessions[session_id]
+    print("Cleaned up: ", gc.collect())
 
 @app.get("/session/all")
 async def get_all_sessions():

@@ -59,6 +59,15 @@ class Session:
         self.create_video_propagator()
         self._make_directory()
 
+    def delete(self):
+        """
+        Delete it's own directory and also free up RAM.
+        """
+
+        self.cleanup()
+
+        os.rmdir(self.directory)
+
     def cleanup(self):
         """
         Cleanup by setting everything to None to free up some RAM.

@@ -115,8 +115,11 @@ function EnsureSAM2Running()
 
         if handle then handle:close() end
 
+        -- yes this is bad because thread blocker but i have no other solution..
+        os.execute("sleep 1")
+
         -- after booting up the server, we need to send a heartbeat init request!
-        local handle = POpen("sleep 5 && curl -X POST http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/init &")
+        local handle = POpen("curl -X POST http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/init &")
         if handle then handle:close() end
         Log("Attempted to init the heartbeat system")
     else
