@@ -26,6 +26,8 @@ FuRegisterClass('sam2fuse', CT_Tool, {
 
 local json = require("json")
 CONFIG = nil
+MODELS = nil
+DIRECTORY = ""
 
 PROGRAM_CONFIG = {
     port = 19078,
@@ -58,7 +60,7 @@ function SendRequest(url, type, ...)
     end
 
     -- send the actual request
-    Log("Sending a request to " .. url)
+    Log("Sending a request to " .. url .. " using the command: " .. "curl -s -X " .. type .. " " .. url)
     
     -- construct the curl request
     local handle = nil
@@ -123,8 +125,8 @@ function EnsureSAM2Running()
 end
 
 function LoadConfig()
-    local directory = debug.getinfo(1, "S").source:match("@?(.*[\\/])") -- use regex to find the correct directory
-    local configFile = io.open(directory .. "config.json", "r")
+    DIRECTORY = debug.getinfo(1, "S").source:match("@?(.*[\\/])") -- use regex to find the correct directory
+    local configFile = io.open(DIRECTORY .. "config.json", "r")
 
     if configFile == nil then
         Log("Failed to load config. Make sure the user has ran the setup.")
@@ -167,9 +169,27 @@ function CreateSpacer()
     TOTAL_SPACERS = TOTAL_SPACERS + 1
 end
 
-function CreateNewSession()
+function CreateNewSession(req)
+    -- make json data
+    local newRequestBody = {
+        model = "sam2.1_hiera_" .. MODELS[InModel:GetValue(req).Value + 1] .. ".pt"
+    }
+
     -- send a request and yeah
-    local handle = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port, "POST")
+    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/new", "POST", "-H \"Content-Type: application/json\" -d '" .. json.encode(newRequestBody) .. "'")
+
+    if response == "empty" then
+        Log("Got an empty repsonse from the API. What.")
+        return
+    end
+
+    local response_json = json.decode(response)
+
+    if response_json.session_id ~= nil then
+        PROGRAM_CONFIG.session_id = response_json.session_id
+    else
+        Log("Could not create a session! Here's the response from the api: " .. response)
+    end
 end
 
 function Create()
@@ -179,8 +199,7 @@ function Create()
     -- after the node is created, we want to start up a new session.
     EnsureSAM2Running()
 
-    local models = GetModels()
-
+    MODELS = GetModels()
 
     -- create our ui components
 
@@ -200,7 +219,7 @@ function Create()
     })
 
     -- thanks akascape for this! - load models
-    if models ~= nil and #models > 0 then
+    if MODELS ~= nil and #MODELS > 0 then
         InModel = self:AddInput("Models", "ModelsDropdown", {
             LINKID_DataType = "Number",
             INPID_InputControl = "ComboControl",
@@ -209,7 +228,7 @@ function Create()
             INP_External = false,
         })
 
-        for _, label in ipairs(models) do
+        for _, label in ipairs(MODELS) do
             InModel:SetAttrs({ CCS_AddString = label })
         end
     end
@@ -294,13 +313,15 @@ function Create()
         LINKID_DataType = "Image",
         LINK_Main = 1,
     })
-
-
-    -- create a request to create a session
 end
 
 
 function Process(req)
+    -- if a session doesn't exist, create one
+    if PROGRAM_CONFIG.session_id == -1 then
+        CreateNewSession(req)
+    end
+
     local img = InImage:GetValue(req)
     OutImage:Set(req, img)
 end
