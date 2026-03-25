@@ -111,11 +111,12 @@ function EnsureSAM2Running()
 
         local handle = POpen(command)
 
-        -- after booting up the server, we need to send a heartbeat init request!
-        local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/init", "POST")
-        Log("Response after initing heartbeat: " .. response)
-
         if handle then handle:close() end
+
+        -- after booting up the server, we need to send a heartbeat init request!
+        local handle = POpen("sleep 5 && curl -X POST http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/init &")
+        if handle then handle:close() end
+        Log("Attempted to init the heartbeat system")
     else
         Log("The server is already running. No need to do anything :)")
     end
@@ -169,7 +170,6 @@ end
 function CreateNewSession()
     -- send a request and yeah
     local handle = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port, "POST")
-
 end
 
 function Create()
