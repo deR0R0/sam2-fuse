@@ -53,9 +53,15 @@ def shutdown_server():
 def check_heartbeat():
     global last_heartbeat
     while True:
-        if time.time() - last_heartbeat >= 180: # 3 minutes
-            print("Exiting due to inactivity...")
-            shutdown_server() # exit to save the user's ram lol
+        if time.time() - last_heartbeat >= 90: # 1.5 minutes
+            print("Cleaning up due to inactivity...")
+            # cleanup all sessions
+            for session in sessions.keys():
+                sessions[session].cleanup()
+
+        if time.time() - last_heartbeat >= 300: # 5 minutes
+            print("Shutting down server")
+            shutdown_server() # exit to save ram
             break
 
         time.sleep(60)
