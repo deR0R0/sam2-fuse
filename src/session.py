@@ -14,7 +14,7 @@ from sam2 import sam2_video_predictor
 from sam2.build_sam import build_sam2_video_predictor
 from src.configurer import Configurer
 import numpy as np
-import torch, os, io, base64, threading
+import torch, os, io, base64, threading, gc
 
 configurer = Configurer()
 
@@ -58,6 +58,22 @@ class Session:
 
         self.create_video_propagator()
         self._make_directory()
+
+    def cleanup(self):
+        """
+        Cleanup by setting everything to None to free up some RAM.
+        """
+
+        self.predictor = None
+        self.state = None
+        self.generator = None
+
+        print("Just garbage collected: ", gc.collect())
+
+        if self.device == "cuda":
+            torch.cuda.empty_cache()
+        elif self.device == "mps":
+            torch.mps.empty_cache()
 
     def _make_directory(self):
         """

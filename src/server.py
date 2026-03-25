@@ -118,6 +118,18 @@ async def propagate_stop(id: str):
 
     return {"success": True, "message": "Probably stopped video propagation"}
 
+@app.post("/session/{id}/cleanup")
+async def cleanup_session(id: str):
+    session_id = int(id)
+    if session_id not in sessions:
+        return {"success": False, "message": "Session not found"}
+    
+    session = sessions[session_id]
+
+    session.cleanup()
+
+    return {"success": True, "message": "Cleaned up some resources"}
+
 
 @app.get("/session/all")
 async def get_all_sessions():

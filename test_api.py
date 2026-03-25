@@ -5,6 +5,7 @@ import httpx
 import cv2
 import os
 
+session_id = 0
 
 def test_new():
     img = Image.new("RGB", (640, 480), color=(255, 0, 0))
@@ -15,6 +16,7 @@ def test_new():
     print(response)
 
 def test_video():
+    global session_id
     # we need to strip all the image frames from this, encode to base64, then send it to our api
     # then use that base64 to decode and put it all together
     cap = cv2.VideoCapture("./test_video.mp4")
@@ -69,11 +71,18 @@ def test_video():
     response = httpx.post(f"http://localhost:8000/session/{session_id}/propagate/stop")
     print("Response after stopping propagation: ", response)
 
+def test_cleanup():
+    global session_id
+
+    response = httpx.post(f"http://localhost:8000/session/{session_id}/cleanup")
+    print("Response after cleanup: ", response)
+
 
 if __name__ == "__main__":
     print("[0] Exit")
     print("[1] Test New Session")
     print("[2] Test Video")
+    print("[3] Test CleanUp")
     while True:
         x = input("")
         match x:
@@ -83,3 +92,5 @@ if __name__ == "__main__":
                 test_new()
             case "2":
                 test_video()
+            case "3":
+                test_cleanup()
