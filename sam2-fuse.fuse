@@ -116,7 +116,7 @@ function EnsureSAM2Running()
         if handle then handle:close() end
 
         -- yes this is bad because thread blocker but i have no other solution..
-        os.execute("sleep 1")
+        os.execute("sleep 2")
 
         -- after booting up the server, we need to send a heartbeat init request!
         local handle = POpen("curl -X POST http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/init &")
@@ -199,6 +199,11 @@ function CreateNewSession(req)
     else
         Log("Could not create a session! Here's the response from the api: " .. response)
     end
+end
+
+function HeartBeat()
+    Log("Sending heartbeat..")
+    SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/beat", "POST")
 end
 
 function Create()
@@ -326,6 +331,9 @@ end
 
 
 function Process(req)
+    -- send a beat to the heartbeat
+    HeartBeat()
+
     -- if a session doesn't exist, create one
     if PROGRAM_CONFIG.session_id == -1 then
         CreateNewSession(req)
