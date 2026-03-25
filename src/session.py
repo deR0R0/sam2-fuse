@@ -14,7 +14,7 @@ from sam2 import sam2_video_predictor
 from sam2.build_sam import build_sam2_video_predictor
 from src.configurer import Configurer
 import numpy as np
-import torch, os, io, base64, threading, gc
+import torch, os, io, base64, threading, gc, shutil
 
 configurer = Configurer()
 
@@ -66,14 +66,19 @@ class Session:
 
         self.cleanup()
 
-        os.rmdir(self.directory)
+        shutil.rmtree(self.directory)
 
     def cleanup(self):
         """
         Cleanup by setting everything to None to free up some RAM.
+        There might be a memory leak but uh... I dunno what I'm supposed to do :D
         """
 
-        self.predictor = None
+        # change to CPU to remove the cache on MPS and CUDA devices
+        if self.predictor is not None:
+            self.predictor.to("cpu")
+            self.predictor = None
+
         self.state = None
         self.generator = None
 
@@ -176,7 +181,12 @@ class Session:
         print("Initing state...")
 
         # make sure we have video state
-        self.init_state()
+        try:
+            self.init_state()
+        except Exception as err:
+            print("Error while initing state: ", err)
+            print("Most likely because the session is being deleted... stopping now")
+            return
 
         print("Creating video generator...")
 

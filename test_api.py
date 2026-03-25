@@ -77,12 +77,20 @@ def test_cleanup():
     response = httpx.post(f"http://localhost:8000/session/{session_id}/cleanup")
     print("Response after cleanup: ", response)
 
+def test_delete():
+    global session_id
+
+
+    response = httpx.post(f"http://localhost:8000/session/{session_id}/delete")
+    print("Response after deleting: ", response)
+
 
 if __name__ == "__main__":
     print("[0] Exit")
     print("[1] Test New Session")
     print("[2] Test Video")
     print("[3] Test CleanUp")
+    print("[4] Test Delete")
     while True:
         x = input("")
         match x:
@@ -94,3 +102,5 @@ if __name__ == "__main__":
                 test_video()
             case "3":
                 test_cleanup()
+            case "4":
+                test_delete()

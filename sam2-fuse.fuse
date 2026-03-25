@@ -29,6 +29,8 @@ CONFIG = nil
 MODELS = nil
 DIRECTORY = ""
 
+INITIALIZED = false
+
 PROGRAM_CONFIG = {
     port = 19078,
     session_id = -1,
@@ -172,17 +174,25 @@ function CreateSpacer()
     TOTAL_SPACERS = TOTAL_SPACERS + 1
 end
 
-function CreateNewSession(req)
+function CreateNewSession(req, param_val)
     -- if you already exist, delete the old session
     if PROGRAM_CONFIG.session_id ~= -1 then
-        local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/delete", "POST")
+        local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/delete", "POST")
         Log("Got response: " .. response .. " after deleting old session")
     end
 
     -- make json data
-    local newRequestBody = {
-        model = "sam2.1_hiera_" .. MODELS[InModel:GetValue(req).Value + 1] .. ".pt"
-    }
+    local newRequestBody
+    if req ~= nil then
+        newRequestBody = {
+            model = "sam2.1_hiera_" .. MODELS[InModel:GetValue(req).Value + 1] .. ".pt"
+        }
+    else
+        Log("param val: " .. param_val)
+        newRequestBody = {
+            model = "sam2.1_hiera_" .. MODELS[param_val + 1] .. ".pt"
+        }
+    end
 
     -- send a request and yeah
     local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/new", "POST", "-H \"Content-Type: application/json\" -d '" .. json.encode(newRequestBody) .. "'")
@@ -245,6 +255,9 @@ function Create()
         for _, label in ipairs(MODELS) do
             InModel:SetAttrs({ CCS_AddString = label })
         end
+
+        -- set this seperately so it doesn't call the NotifyChanged function
+        InModel:SetAttrs({ INP_DoNotifyChanged = true })
     end
 
     -- our objects
@@ -329,8 +342,22 @@ function Create()
     })
 end
 
+-- do notify changed, according to sdk, is executed before process
+function NotifyChanged(inp, param, time)
+    if not INITIALIZED then -- needed to prevent the call of this function when the input is created.
+        return
+    end
+
+    if inp == InModel then
+        Log("Detected a model change. Creating new session...")
+        CreateNewSession(nil, param.Value)
+    end
+end
 
 function Process(req)
+    -- set init to true
+    INITIALIZED = true
+
     -- send a beat to the heartbeat
     HeartBeat()
 
