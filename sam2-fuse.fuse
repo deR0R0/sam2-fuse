@@ -34,6 +34,7 @@ INITIALIZED = false
 PROGRAM_CONFIG = {
     port = 19078,
     session_id = -1,
+    last_model = -1
 }
 
 
@@ -175,6 +176,18 @@ function CreateSpacer()
 end
 
 function CreateNewSession(req, param_val)
+    if req ~= nil then
+        if InModel:GetValue(req).Value + 1 == PROGRAM_CONFIG.last_model then -- check for dupe
+            return
+        end
+        PROGRAM_CONFIG.last_model = InModel:GetValue(req).Value + 1
+    else
+        if param_val + 1 == PROGRAM_CONFIG.last_model then -- check for dupe
+            return
+        end
+        PROGRAM_CONFIG.last_model = param_val + 1
+    end
+
     -- if you already exist, delete the old session
     if PROGRAM_CONFIG.session_id ~= -1 then
         local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/delete", "POST")
@@ -188,7 +201,6 @@ function CreateNewSession(req, param_val)
             model = "sam2.1_hiera_" .. MODELS[InModel:GetValue(req).Value + 1] .. ".pt"
         }
     else
-        Log("param val: " .. param_val)
         newRequestBody = {
             model = "sam2.1_hiera_" .. MODELS[param_val + 1] .. ".pt"
         }
@@ -250,14 +262,12 @@ function Create()
             INP_Default = 0.0,
             INP_Integer = true,
             INP_External = false,
+            INP_DoNotifyChanged = true,
         })
 
         for _, label in ipairs(MODELS) do
             InModel:SetAttrs({ CCS_AddString = label })
         end
-
-        -- set this seperately so it doesn't call the NotifyChanged function
-        InModel:SetAttrs({ INP_DoNotifyChanged = true })
     end
 
     -- our objects
@@ -340,6 +350,8 @@ function Create()
         LINKID_DataType = "Image",
         LINK_Main = 1,
     })
+
+    INITIALIZED = true -- this doesn't do dog
 end
 
 -- do notify changed, according to sdk, is executed before process
@@ -355,9 +367,6 @@ function NotifyChanged(inp, param, time)
 end
 
 function Process(req)
-    -- set init to true
-    INITIALIZED = true
-
     -- send a beat to the heartbeat
     HeartBeat()
 

@@ -326,7 +326,7 @@ class Setup:
             self.install_pytorch_cuda()
             self.install_packages(["decord"]) # on windows, decord can be installed normally
 
-        self.install_packages(["fastapi", "pillow"])
+        self.install_packages(["fastapi", "pillow", "uvicorn"])
 
         # install SAM2 models
         self.install_sam2()
