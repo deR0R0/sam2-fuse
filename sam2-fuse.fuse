@@ -225,7 +225,10 @@ end
 
 function HeartBeat()
     Log("Sending heartbeat..")
-    SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/beat", "POST")
+    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/beat", "POST")
+    if response == "empty" then
+        EnsureSAM2Running()
+    end
 end
 
 function Create()
