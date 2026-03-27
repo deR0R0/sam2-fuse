@@ -231,12 +231,13 @@ function HeartBeat()
     end
 end
 
+function SetStatus(status)
+    OutTrackStatus:SetSource(Text(status), 0, 0)
+end
+
 function Create()
     -- load config
     LoadConfig()
-
-    -- after the node is created, we want to start up a new session.
-    EnsureSAM2Running()
 
     MODELS = GetModels()
 
@@ -347,8 +348,19 @@ function Create()
         LINKID_DataType = "Number",
         INPID_InputControl = "LabelControl",
         LBLC_DropDownButton = true,
-        LBLC_NumInputs = 2,
+        LBLC_NumInputs = 3,
         INP_Default = 1
+    })
+
+    OutTrackStatus = self:AddInput("Current Status", "OutTrackStatus", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "TextEditControl",
+        INPS_DefaultText = "Booting Up Server...",
+        TEC_ReadOnly = true,
+        INP_External = false,
+        TEC_Lines = 1,
+        TEC_DeferSetInputs = true,
+        INP_Passive = true,
     })
 
     InTrackStartButton = self:AddInput("Start Track", "StartTrackButton", {
@@ -380,6 +392,9 @@ function Create()
     })
 
     INITIALIZED = true -- this doesn't do dog
+
+    -- after the node is created, we want to start up a new session.
+    EnsureSAM2Running()
 end
 
 -- do notify changed, according to sdk, is executed before process
@@ -388,13 +403,15 @@ function NotifyChanged(inp, param, time)
         return
     end
 
-    if inp == InModel then
+    if inp == InModel and false then
         Log("Detected a model change. Creating new session...")
         CreateNewSession(nil, param.Value)
     end
 end
 
 function Process(req)
+    SetStatus("READY")
+
     -- send a beat to the heartbeat
     HeartBeat()
 
