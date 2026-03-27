@@ -342,6 +342,31 @@ function Create()
         INP_External = false,
     })
 
+    -- tracking details
+    InTrackGroup = self:AddInput("Tracking Handler", "TrackGroup", {
+        LINKID_DataType = "Number",
+        INPID_InputControl = "LabelControl",
+        LBLC_DropDownButton = true,
+        LBLC_NumInputs = 2,
+        INP_Default = 1
+    })
+
+    InTrackStartButton = self:AddInput("Start Track", "StartTrackButton", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "ButtonControl",
+        ICD_Width = 0.5,
+        INP_DoNotifyChanged = true,
+        INP_External = false,
+    })
+
+    InTrackStopButton = self:AddInput("Stop Track", "StopTrackButton", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "ButtonControl",
+        ICD_Width = 0.5,
+        INP_DoNotifyChanged = true,
+        INP_External = false,
+    })
+
     -- in and out images
     InImage = self:AddInput("Input", "Input", {
         LINKID_DataType = "Image",
