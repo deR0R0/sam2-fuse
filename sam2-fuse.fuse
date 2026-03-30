@@ -29,7 +29,9 @@ CONFIG = nil
 MODELS = nil
 DIRECTORY = ""
 
-INITIALIZED = false
+self:SetData("INITIALIZED", false)
+self:SetData("EXPORTING", false)
+self:SetData("LOCK", false)
 
 PROGRAM_CONFIG = {
     port = 19078,
@@ -304,7 +306,7 @@ function Create()
     })
 
     InObjOnePointsDelete = self:AddInput("Delete Point", "ObjOneDelPoint", {
-        LINKID_DataType = "Text",
+        LINKID_DataType = "Number",
         INPID_InputControl = "ButtonControl",
         ICD_Width = 1,
         INP_DoNotifyChanged = true,
@@ -328,7 +330,7 @@ function Create()
     })
 
     InObjOneFButton = self:AddInput("Add Foreground", "ObjOneFButton", {
-        LINKID_DataType = "Text",
+        LINKID_DataType = "Number",
         INPID_InputControl = "ButtonControl",
         ICD_Width = 0.5,
         INP_DoNotifyChanged = true,
@@ -336,7 +338,7 @@ function Create()
     })
 
     InObjOneBButton = self:AddInput("Add Background", "ObjOneBButton", {
-        LINKID_DataType = "Text",
+        LINKID_DataType = "Number",
         INPID_InputControl = "ButtonControl",
         ICD_Width = 0.5,
         INP_DoNotifyChanged = true,
@@ -364,7 +366,7 @@ function Create()
     })
 
     InTrackStartButton = self:AddInput("Start Track", "StartTrackButton", {
-        LINKID_DataType = "Text",
+        LINKID_DataType = "Number",
         INPID_InputControl = "ButtonControl",
         ICD_Width = 0.5,
         INP_DoNotifyChanged = true,
@@ -372,7 +374,7 @@ function Create()
     })
 
     InTrackStopButton = self:AddInput("Stop Track", "StopTrackButton", {
-        LINKID_DataType = "Text",
+        LINKID_DataType = "Number",
         INPID_InputControl = "ButtonControl",
         ICD_Width = 0.5,
         INP_DoNotifyChanged = true,
@@ -391,28 +393,78 @@ function Create()
         LINK_Main = 1,
     })
 
-    INITIALIZED = true -- this doesn't do dog
-
     -- after the node is created, we want to start up a new session.
     EnsureSAM2Running()
 end
 
--- do notify changed, according to sdk, is executed before process
-function NotifyChanged(inp, param, time)
-    if not INITIALIZED then -- needed to prevent the call of this function when the input is created.
+function ExportFrame(req, img)
+    -- needs to be run in process to get exposed to the self.Comp
+    Log("EXPORTING FRAME " .. req.Time)
+    SetStatus("EXPORTING FRAME " .. req.Time)
+
+    if InObjOnePoints:GetValue(req) == nil then
+        Log("User hasn't set points yet. Exiting..")
+        SetStatus("NEED POINTS")
         return
     end
 
-    if inp == InModel and false then
+    -- start export
+    local filename = DIRECTORY .. "processing/" .. PROGRAM_CONFIG.session_id .. "/input" .. string.format("/%05d.jpg", req.Time)
+    local input = Clip(filename, true)
+    input:Open()
+
+    local result = input:PutFrame(req.Time, img)
+    input:Close()
+    SetStatus("EXPORTED FRAME " .. req.Time)
+
+    if not result then
+        Log("Failed to save image.")
+        SetStatus("FAILED EXPORT: FRAME " .. req.Time)
+        return
+    end
+end
+
+function SetTime(req, time)
+    req.Comp:Execute("comp.CurrentTime = " .. time)
+end
+
+function SetCompLock(req, lock)
+    if lock == self:GetData("LOCK") then -- dont keep modifing the val
+        return
+    end
+
+    if lock then
+        req.Comp:Execute("comp:Lock()")
+        self:SetData("LOCK", lock)
+    else
+        req.Comp:Execute("comp:Unlock()")
+        self:SetData("LOCK", lock)
+    end
+end
+
+-- do notify changed, according to sdk, is executed before process
+function NotifyChanged(inp, param, time)
+    if not self:GetData("INITIALIZED") then -- needed to prevent the call of this function when the input is created.
+        return
+    end
+
+    if inp == InModel then
         Log("Detected a model change. Creating new session...")
+        SetStatus("CHANGING MODELS...")
         CreateNewSession(nil, param.Value)
+    end
+
+    if inp == InTrackStartButton then
+        self:SetData("EXPORTING", true)
     end
 end
 
 function Process(req)
     SetStatus("READY")
+    self:SetData("INITIALIZED", true)
 
     -- send a beat to the heartbeat
+    -- TODO: remake the heartbeat system based on time to reduce a lil load off of the server
     HeartBeat()
 
     -- if a session doesn't exist, create one
@@ -420,6 +472,17 @@ function Process(req)
         CreateNewSession(req)
     end
 
+    -- get img
     local img = InImage:GetValue(req)
+
+    -- check for if we're exporting
+    if self:GetData("EXPORTING") then
+        SetCompLock(req, true)
+        ExportFrame(req, img)
+    else
+        SetCompLock(req, false)
+    end
+
+    -- set out image
     OutImage:Set(req, img)
 end
