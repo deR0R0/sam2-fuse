@@ -29,7 +29,6 @@ CONFIG = nil
 MODELS = nil
 DIRECTORY = ""
 
-self:SetData("INITIALIZED", false)
 self:SetData("EXPORTING", false)
 self:SetData("LOCK", false)
 
@@ -444,10 +443,6 @@ end
 
 -- do notify changed, according to sdk, is executed before process
 function NotifyChanged(inp, param, time)
-    if not self:GetData("INITIALIZED") then -- needed to prevent the call of this function when the input is created.
-        return
-    end
-
     if inp == InModel then
         Log("Detected a model change. Creating new session...")
         SetStatus("CHANGING MODELS...")
@@ -457,11 +452,14 @@ function NotifyChanged(inp, param, time)
     if inp == InTrackStartButton then
         self:SetData("EXPORTING", true)
     end
+
+    if inp == InTrackStopButton then
+        self:SetData("EXPORTING", false)
+    end
 end
 
 function Process(req)
     SetStatus("READY")
-    self:SetData("INITIALIZED", true)
 
     -- send a beat to the heartbeat
     -- TODO: remake the heartbeat system based on time to reduce a lil load off of the server
