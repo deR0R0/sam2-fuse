@@ -30,7 +30,6 @@ MODELS = nil
 DIRECTORY = ""
 
 self:SetData("EXPORTING", false)
-self:SetData("LOCK", false)
 
 PROGRAM_CONFIG = {
     port = 19078,
@@ -177,6 +176,8 @@ function CreateSpacer()
 end
 
 function CreateNewSession(req, param_val)
+    Log("Creating a new session...")
+
     if req ~= nil then
         if InModel:GetValue(req).Value + 1 == PROGRAM_CONFIG.last_model then -- check for dupe
             return
@@ -427,25 +428,9 @@ function SetTime(req, time)
     req.Comp:Execute("comp.CurrentTime = " .. time)
 end
 
-function SetCompLock(req, lock)
-    if lock == self:GetData("LOCK") then -- dont keep modifing the val
-        return
-    end
-
-    if lock then
-        req.Comp:Execute("comp:Lock()")
-        self:SetData("LOCK", lock)
-    else
-        req.Comp:Execute("comp:Unlock()")
-        self:SetData("LOCK", lock)
-    end
-end
-
 -- do notify changed, according to sdk, is executed before process
 function NotifyChanged(inp, param, time)
     if inp == InModel then
-        Log("Detected a model change. Creating new session...")
-        SetStatus("CHANGING MODELS...")
         CreateNewSession(nil, param.Value)
     end
 
@@ -465,20 +450,12 @@ function Process(req)
     -- TODO: remake the heartbeat system based on time to reduce a lil load off of the server
     HeartBeat()
 
-    -- if a session doesn't exist, create one
-    if PROGRAM_CONFIG.session_id == -1 then
-        CreateNewSession(req)
-    end
-
     -- get img
     local img = InImage:GetValue(req)
 
     -- check for if we're exporting
     if self:GetData("EXPORTING") then
-        SetCompLock(req, true)
         ExportFrame(req, img)
-    else
-        SetCompLock(req, false)
     end
 
     -- set out image
