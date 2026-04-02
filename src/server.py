@@ -49,6 +49,8 @@ def base64_to_numpy(b64: str) -> np.ndarray:
     return np.array(img)
 
 def shutdown_server():
+    for session in sessions:
+        sessions[session].delete() # need this to clean up unneccessary directories.
     os.kill(os.getpid(), signal.SIGTERM)
 
 def check_heartbeat():
