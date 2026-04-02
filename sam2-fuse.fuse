@@ -30,7 +30,9 @@ MODELS = nil
 DIRECTORY = ""
 
 self:SetData("EXPORTING", false)
-self:SetData("FRAMES_EXPORTED", 0)
+self:SetData("EXPORT_FINISHED", false)
+self:SetData("PROPAGATING", false)
+self:SetData("FRAMES_PROCESSED", 0)
 
 PROGRAM_CONFIG = {
     port = 19078,
@@ -212,6 +214,42 @@ function CreateNewSession(req, param_val)
     else
         Log("Could not create a session! Here's the response from the api: " .. response)
     end
+end
+
+function StartPropagation()
+    Log("Starting propagation..")
+
+    if PROGRAM_CONFIG.session_id == -1 then
+        Log("Can't propagate because session_id is -1")
+        return
+    end
+
+    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/propagate/start")
+
+    if response == "empty" then
+        Log("Got an empty response from API.")
+        return
+    end
+
+    Log("Got response after starting propagation: " .. response)
+end
+
+function StopPropagation()
+    Log("Stopping propagation")
+
+    if PROGRAM_CONFIG.session_id == -1 then
+        Log("Can't stop propagate because session_id is -1")
+        return
+    end
+
+    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/propagate/stop")
+
+    if response == "empty" then
+        Log("Got an empty response from API.")
+        return
+    end
+
+    Log("Got response after starting propagation: " .. response)
 end
 
 function HeartBeat()
@@ -465,33 +503,54 @@ function Process(req)
     local img = InImage:GetValue(req)
 
     if self:GetData("EXPORTING") then
-        if self:GetData("FRAMES_EXPORTED") == 0 then
+        if self:GetData("EXPORT_FINISHED") then
+            self:SetData("EXPORTING", false)
+            self:SetData("EXPORT_FINISHED", true)
+            self:SetData("PROPAGATING", true)
+            self:SetData("FRAMES_PROCESSED", 0)
+            OutImage:Set(req, img)
+            ClearCache(req)
+            return
+        end
+
+        if self:GetData("FRAMES_PROCESSED") == 0 then
             SetTime(req, 0) -- set to 0 to start export from front
         end
 
         local start, stop = GetRenderStartStop(req)
 
         -- finished exporting
-        if self:GetData("FRAMES_EXPORTED") >= stop - start then
+        if self:GetData("FRAMES_PROCESSED") >= stop - start then
             Log("Finished export.")
-            SetTime(req, 0)
             self:SetData("EXPORTING", false)
+            self:SetData("EXPORT_FINISHED", true)
+            self:SetData("PROPAGATING", true)
+            self:SetData("FRAMES_PROCESSED", 0)
             OutImage:Set(req, img)
-            ClearCache(req) -- clear cache because davinci resolve saves all vid frames for some reason
+            ClearCache(req) -- clear cache because davinci resolve saves all vid frames for some reason which sucks up a ton of ram
             return
         end
 
-        if self:GetData("FRAMES_EXPORTED") % 20 == 0 then -- clear fusion cache every few frames
+        if self:GetData("FRAMES_PROCESSED") % 50 == 0 then -- clear fusion cache every few frames
             ClearCache(req)
         end
 
 
         ExportFrame(req, img)
         OutImage:Set(req, img)
-        self:SetData("FRAMES_EXPORTED", self:GetData("FRAMES_EXPORTED") + 1)
+        self:SetData("FRAMES_PROCESSED", self:GetData("FRAMES_PROCESSED") + 1)
         SetTime(req, req.Comp.CurrentTime + 1)
 
         return -- end early to prevent further logic from executing
+    end
+
+    if self:GetData("PROPAGATING") then
+        if self:GetData("FRAMES_PROCESSED") == 0 then
+            SetTime(req, 0) -- start propagation from start
+            StartPropagation()
+        end
+
+        
     end
 
     OutImage:Set(req, img)
