@@ -34,6 +34,8 @@ self:SetData("EXPORT_FINISHED", false)
 self:SetData("PROPAGATING", false)
 self:SetData("FRAMES_PROCESSED", 0)
 
+self:SetData("POINTS", "{ \"0\": { \"obj_id\": 1, \"x\": 976, \"y\": 620, \"add\": true }}")
+
 PROGRAM_CONFIG = {
     port = 19078,
     session_id = -1,
@@ -224,7 +226,7 @@ function StartPropagation()
         return
     end
 
-    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/propagate/start")
+    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/propagate/start", "POST")
 
     if response == "empty" then
         Log("Got an empty response from API.")
@@ -242,7 +244,7 @@ function StopPropagation()
         return
     end
 
-    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/propagate/stop")
+    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/propagate/stop", "POST")
 
     if response == "empty" then
         Log("Got an empty response from API.")
@@ -250,6 +252,25 @@ function StopPropagation()
     end
 
     Log("Got response after starting propagation: " .. response)
+end
+
+function AddPoints()
+    Log("Decoding: " .. self:GetData("POINTS"))
+    local points = json.decode(self:GetData("POINTS"))
+
+    for i, point in pairs(points) do
+        local point_data = {
+            frame = tonumber(i),
+            obj_id = tonumber(point.obj_id),
+            x = tonumber(point.x),
+            y = tonumber(point.y),
+            add = point.add
+        }
+
+        local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/point/add", "POST", "-H \"Content-Type: application/json\" -d '" .. json.encode(point_data) .. "'")
+
+        Log("Got response after adding point: " .. response)
+    end
 end
 
 function HeartBeat()
@@ -429,15 +450,15 @@ function ExportFrame(req, img)
     Log("EXPORTING FRAME " .. req.Time)
     SetStatus("EXPORTING FRAME " .. req.Time)
 
-    if InObjOnePoints:GetValue(req) == nil then
+    if self:GetData("POINTS") == "{}" or nil then
         Log("User hasn't set points yet. Exiting..")
         SetStatus("NEED POINTS")
+        self:SetData("EXPORTING", false)
         return
     end
 
     -- create filename. - make sure to have num padding for SAM2
     local filename = DIRECTORY .. "processing/" .. PROGRAM_CONFIG.session_id .. "/input" .. string.format("/%05d.jpg", req.Time)
-    Log("Attempting to save to: " .. filename)
     local input = Clip(filename, true)
     input:Open()
 
@@ -452,6 +473,32 @@ function ExportFrame(req, img)
     end
 end
 
+function GetOutImage(req) -- thx akascape again!
+    if DIRECTORY == nil then
+        Log("directory var is nil.. running config setup again.")
+        LoadConfig()
+    end
+
+    local filename = DIRECTORY .. "processing/" .. PROGRAM_CONFIG.session_id .. "/output" .. string.format("/%05d.png", req.Time)
+
+    local outputFile = io.open(filename)
+    if outputFile then
+        local output_clip = Clip(filename, false)
+        output_clip:Open()
+        local output_img = output_clip:GetFrame(req.Time)
+        output_clip:Close()
+
+        if output_img then
+            Log("Successfully got image for frame " .. req.Time)
+            return output_img
+        else
+            -- Log("Didn't get image for frame " .. req.Time)
+        end
+    end
+
+    return nil
+end
+
 function SetTime(req, time)
     req.Comp:Execute("comp.CurrentTime = " .. time)
 end
@@ -461,8 +508,6 @@ function GetRenderStartStop(req)
     req.Comp:Execute("comp:SetData(\"renderEnd\", comp:GetAttrs().COMPN_RenderEnd)")
     
     local start, stop = req.Comp:GetData("renderStart"), req.Comp:GetData("renderEnd")
-
-    Log("For render start stop, I got: start: " .. start .. " stop: " .. stop)
 
     return start, stop
 end
@@ -486,12 +531,13 @@ function NotifyChanged(inp, param, time)
 
     if inp == InTrackStopButton then
         self:SetData("EXPORTING", false)
+        self:SetData("FRAMES_PROCESSED", 0)
+        self:SetData("PROPAGATING", false)
     end
 end
 
 function Process(req)
     SetStatus("READY")
-
     -- TODO: remake the heartbeat system based on time to reduce a lil load off of the server
     HeartBeat()
 
@@ -531,7 +577,7 @@ function Process(req)
             return
         end
 
-        if self:GetData("FRAMES_PROCESSED") % 50 == 0 then -- clear fusion cache every few frames
+        if self:GetData("FRAMES_PROCESSED") % 50 == 0 and req.Comp.CurrentTime ~= 0 then -- clear fusion cache every few frames
             ClearCache(req)
         end
 
@@ -546,11 +592,23 @@ function Process(req)
 
     if self:GetData("PROPAGATING") then
         if self:GetData("FRAMES_PROCESSED") == 0 then
+            Log("Propagating from the start")
             SetTime(req, 0) -- start propagation from start
+            AddPoints() -- add points wow
             StartPropagation()
         end
 
-        
+        local masked_img = GetOutImage(req)
+        if masked_img ~= nil then
+            OutImage:Set(req, masked_img)
+            self:SetData("FRAMES_PROCESSED", self:GetData("FRAMES_PROCESSED") + 1)
+            SetTime(req, req.Comp.CurrentTime + 1)
+            return
+        else
+            OutImage:Set(req, img)
+            SetTime(req, req.Comp.CurrentTime)
+            return
+        end
     end
 
     OutImage:Set(req, img)

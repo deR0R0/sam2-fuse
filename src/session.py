@@ -56,6 +56,8 @@ class Session:
 
         self.directory: str = f"./processing/{session_id}/"
 
+        self.status: str = "READY"
+
         self.create_video_propagator()
         self._make_directory()
 
@@ -174,6 +176,15 @@ class Session:
         Will propagate through the session id's processing directory.
         """
 
+        if self.status != "READY":
+            print("Exiting propagation because there may be another propagation happening...")
+            return
+        
+        if self.stop_propagation:
+            self.stop_propagation = False # ensure stop propagation isn't already set to true - will make propagation stop immediately
+
+        self.status = "PROPAGATING"
+
         self._make_directory() # make sure directory is made
 
         frames_count: int = len(os.listdir(f"{self.directory}input/"))
@@ -198,15 +209,16 @@ class Session:
             # check for if we should stop propagation
             if self.stop_propagation:
                 print("Stopping frame propagation because user wanted to.")
-                self.stop_propagation = True
+                self.stop_propagation = False
                 break
 
             # attempt to get that frame of video
             frame: np.ndarray = np.array([])
-            if os.path.exists(f"./processing/{str(self.session_id)}/input/{frame_idx}.jpg"):
-                frame = np.array(Image.open(f"./processing/{str(self.session_id)}/input/{frame_idx}.jpg").convert("RGB"))
+            if os.path.exists(f"./processing/{str(self.session_id)}/input/{frame_idx:05d}.jpg"):
+                frame = np.array(Image.open(f"./processing/{str(self.session_id)}/input/{frame_idx:05d}.jpg").convert("RGB"))
             else:
                 print("Can't get the frame. Is it uploaded?")
+                print(f"Tried to look at path: ./processing/{str(self.session_id)}/input/{frame_idx:05d}.jpg")
                 return
 
             result = None
@@ -222,4 +234,6 @@ class Session:
             mask_img = Image.fromarray((mask * 255).astype(np.uint8))
 
             # instead of returning in the api, we save to disk instead
-            mask_img.save(f"{self.directory}output/{frame_idx}.png")
+            mask_img.save(f"{self.directory}output/{frame_idx:05d}.png")
+
+        self.status = "READY" # mark propagator ready - can accept new propagation requests
