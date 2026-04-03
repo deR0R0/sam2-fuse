@@ -159,6 +159,11 @@ class Session:
         """
         Inits the video state and then actually adds the points
         """
+
+        # ensure predictor exists. happens after cleanup
+        if self.predictor == None:
+            self.create_video_propagator()
+
         self.state = self.predictor.init_state(self.directory + "input/") # type: ignore
 
         for point in self.points.keys():
