@@ -32,6 +32,8 @@ DIRECTORY = ""
 self:SetData("EXPORTING", false)
 self:SetData("EXPORT_FINISHED", false)
 self:SetData("PROPAGATING", false)
+self:SetData("PROPAGATING_FINISHED", false)
+self:SetData("PLAYBACK", false)
 self:SetData("FRAMES_PROCESSED", 0)
 
 self:SetData("POINTS", "{ \"0\": { \"obj_id\": 1, \"x\": 976, \"y\": 620, \"add\": true }}")
@@ -464,13 +466,23 @@ function ExportFrame(req, img)
 
     local result = input:PutFrame(req.Time, img)
     input:Close()
-    SetStatus("EXPORTED FRAME " .. req.Time)
 
     if not result then
         Log("Failed to save image.")
         SetStatus("FAILED EXPORT: FRAME " .. req.Time)
-        return
+        return false
     end
+
+    local verify = io.open(filename, "rb")
+    if not verify then
+        Log("Failed to save frame " .. req.Time)
+        SetStatus("FAILED EXPORT: FRAME " .. req.Time)
+        return false
+    end
+
+    SetStatus("EXPORTED FRAME " .. req.Time)
+    verify:close()
+    return true
 end
 
 function GetOutImage(req) -- thx akascape again!
@@ -533,13 +545,14 @@ function NotifyChanged(inp, param, time)
         self:SetData("EXPORTING", false)
         self:SetData("FRAMES_PROCESSED", 0)
         self:SetData("PROPAGATING", false)
+        StopPropagation()
     end
 end
 
 function Process(req)
     SetStatus("READY")
     -- TODO: remake the heartbeat system based on time to reduce a lil load off of the server
-    HeartBeat()
+    --HeartBeat()
 
     if PROGRAM_CONFIG.session_id == -1 then
         Log("Creating new session")
@@ -551,19 +564,20 @@ function Process(req)
     if self:GetData("EXPORTING") then
         if self:GetData("EXPORT_FINISHED") then
             self:SetData("EXPORTING", false)
-            self:SetData("EXPORT_FINISHED", true)
             self:SetData("PROPAGATING", true)
             self:SetData("FRAMES_PROCESSED", 0)
             OutImage:Set(req, img)
             ClearCache(req)
+            SetTime(req, 0)
             return
         end
 
+        local start, stop = GetRenderStartStop(req)
+
         if self:GetData("FRAMES_PROCESSED") == 0 then
             SetTime(req, 0) -- set to 0 to start export from front
+            self:SetData("EXPECTED_FRAME", start)
         end
-
-        local start, stop = GetRenderStartStop(req)
 
         -- finished exporting
         if self:GetData("FRAMES_PROCESSED") >= stop - start then
@@ -574,6 +588,7 @@ function Process(req)
             self:SetData("FRAMES_PROCESSED", 0)
             OutImage:Set(req, img)
             ClearCache(req) -- clear cache because davinci resolve saves all vid frames for some reason which sucks up a ton of ram
+            SetTime(req, 0)
             return
         end
 
@@ -581,34 +596,73 @@ function Process(req)
             ClearCache(req)
         end
 
+        if req.Time ~= self:GetData("EXPECTED_FRAME") then
+            Log("ERR: Davinci Resolve skipped a frame. Going back...")
+            OutImage:Set(req, img)
+            SetTime(req, self:GetData("EXPECTED_FRAME"))
+            return
+        end
 
-        ExportFrame(req, img)
+
+        while not ExportFrame(req, img) do end -- keep trying to save the frame...
         OutImage:Set(req, img)
         self:SetData("FRAMES_PROCESSED", self:GetData("FRAMES_PROCESSED") + 1)
+        self:SetData("EXPECTED_FRAME", self:GetData("EXPECTED_FRAME") + 1)
         SetTime(req, req.Comp.CurrentTime + 1)
 
         return -- end early to prevent further logic from executing
     end
 
     if self:GetData("PROPAGATING") then
-        if self:GetData("FRAMES_PROCESSED") == 0 then
+        local frames_processed = self:GetData("FRAMES_PROCESSED")
+
+        if frames_processed == 0 then
             Log("Propagating from the start")
-            SetTime(req, 0) -- start propagation from start
             AddPoints() -- add points wow
             StartPropagation()
         end
 
+        local start, stop = GetRenderStartStop(req)
+
         local masked_img = GetOutImage(req)
+
+        local retry = 0
+
+        while masked_img == nil do
+            if retry >= 100 then
+                Log("Stopped trying to get the propagation frame.")
+                OutImage:Set(req, img)
+                StopPropagation()
+                return
+            end
+
+
+            masked_img = GetOutImage(req)
+            os.execute("sleep 0.1")
+            retry = retry + 1
+        end
+
         if masked_img ~= nil then
             OutImage:Set(req, masked_img)
             self:SetData("FRAMES_PROCESSED", self:GetData("FRAMES_PROCESSED") + 1)
+
+            if self:GetData("FRAMES_PROCESSED") >= stop - start then
+                self:SetData("PROPAGATING", false)
+                self:SetData("PROPAGATING_FINISHED", true)
+                self:SetData("PLAYBACK", true)
+                SetTime(req, 0)
+                return
+            end
+
             SetTime(req, req.Comp.CurrentTime + 1)
             return
-        else
-            OutImage:Set(req, img)
-            SetTime(req, req.Comp.CurrentTime)
-            return
         end
+    end
+
+    if self:GetData("PLAYBACK") then
+        local masked_img = GetOutImage(req)
+        OutImage:Set(req, masked_img)
+        return
     end
 
     OutImage:Set(req, img)
