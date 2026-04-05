@@ -647,6 +647,7 @@ function Process(req)
             self:SetData("FRAMES_PROCESSED", self:GetData("FRAMES_PROCESSED") + 1)
 
             if self:GetData("FRAMES_PROCESSED") >= stop - start then
+                Log("Finished propagating! Enabling playback mode...")
                 self:SetData("PROPAGATING", false)
                 self:SetData("PROPAGATING_FINISHED", true)
                 self:SetData("PLAYBACK", true)

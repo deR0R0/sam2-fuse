@@ -12,7 +12,7 @@ import numpy as np
 import base64
 import io
 import time
-import sys
+import threading
 import os
 import signal
 import gc
@@ -99,7 +99,7 @@ async def add_point(id: str, param: AddPoint):
     return {"success": True, "message": "Added new point."}
 
 @app.post("/session/{id}/propagate/start")
-async def propagate_start(id: str, bg_tasks: BackgroundTasks):
+async def propagate_start(id: str):
     session_id = int(id)
     if session_id not in sessions:
         return {"success": False, "message": "Session not found"}
@@ -109,8 +109,16 @@ async def propagate_start(id: str, bg_tasks: BackgroundTasks):
     # make sure the stop propagation is set to false
     session.stop_propagation = False
     
-    # send the propagation off to a background task
-    bg_tasks.add_task(session.propagate)
+    # send the propagation off to a thread and continously check the status to finally release the request
+    t = threading.Thread(target=session.propagate, daemon=True)
+    t.start()
+
+    start = time.time()
+    while session.status != "PROPAGATING":
+        if time.time() - start >= 10:
+            return {"success": False, "message": "Couldn't start propagation within the time limit"}
+        
+        time.sleep(0.2)
 
     return {"success": True, "message": "Started video propagation"}
 

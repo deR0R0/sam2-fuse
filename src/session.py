@@ -188,7 +188,7 @@ class Session:
         if self.stop_propagation:
             self.stop_propagation = False # ensure stop propagation isn't already set to true - will make propagation stop immediately
 
-        self.status = "PROPAGATING"
+        self.status = "INIT_STATE"
 
         self._make_directory() # make sure directory is made
 
@@ -208,6 +208,8 @@ class Session:
 
         # regenerate generator
         self.generator = self.predictor.propagate_in_video(self.state) # type: ignore
+
+        self.status = "PROPAGATING"
 
         for frame_idx in range(frames_count):
             print("Processing frame ", frame_idx)
@@ -242,3 +244,4 @@ class Session:
             mask_img.save(f"{self.directory}output/{frame_idx:05d}.png")
 
         self.status = "READY" # mark propagator ready - can accept new propagation requests
+        self.cleanup() # cleanup all the stuff to save on ram!
