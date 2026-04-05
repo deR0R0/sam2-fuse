@@ -579,19 +579,6 @@ function Process(req)
             self:SetData("EXPECTED_FRAME", start)
         end
 
-        -- finished exporting
-        if self:GetData("FRAMES_PROCESSED") >= stop - start then
-            Log("Finished export.")
-            self:SetData("EXPORTING", false)
-            self:SetData("EXPORT_FINISHED", true)
-            self:SetData("PROPAGATING", true)
-            self:SetData("FRAMES_PROCESSED", 0)
-            OutImage:Set(req, img)
-            ClearCache(req) -- clear cache because davinci resolve saves all vid frames for some reason which sucks up a ton of ram
-            SetTime(req, 0)
-            return
-        end
-
         if self:GetData("FRAMES_PROCESSED") % 50 == 0 and req.Comp.CurrentTime ~= 0 then -- clear fusion cache every few frames
             ClearCache(req)
         end
@@ -607,6 +594,20 @@ function Process(req)
         while not ExportFrame(req, img) do end -- keep trying to save the frame...
         OutImage:Set(req, img)
         self:SetData("FRAMES_PROCESSED", self:GetData("FRAMES_PROCESSED") + 1)
+
+        -- finished exporting
+        if self:GetData("FRAMES_PROCESSED") > stop - start then
+            Log("Finished export.")
+            self:SetData("EXPORTING", false)
+            self:SetData("EXPORT_FINISHED", true)
+            self:SetData("PROPAGATING", true)
+            self:SetData("FRAMES_PROCESSED", 0)
+            OutImage:Set(req, img)
+            ClearCache(req) -- clear cache because davinci resolve saves all vid frames for some reason which sucks up a ton of ram
+            SetTime(req, 0)
+            return
+        end
+
         self:SetData("EXPECTED_FRAME", self:GetData("EXPECTED_FRAME") + 1)
         SetTime(req, req.Comp.CurrentTime + 1)
 
@@ -646,7 +647,7 @@ function Process(req)
             OutImage:Set(req, masked_img)
             self:SetData("FRAMES_PROCESSED", self:GetData("FRAMES_PROCESSED") + 1)
 
-            if self:GetData("FRAMES_PROCESSED") >= stop - start then
+            if self:GetData("FRAMES_PROCESSED") > stop - start then
                 Log("Finished propagating! Enabling playback mode...")
                 self:SetData("PROPAGATING", false)
                 self:SetData("PROPAGATING_FINISHED", true)
