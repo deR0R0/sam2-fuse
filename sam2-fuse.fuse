@@ -36,7 +36,7 @@ self:SetData("PROPAGATING_FINISHED", false)
 self:SetData("PLAYBACK", false)
 self:SetData("FRAMES_PROCESSED", 0)
 
-self:SetData("POINTS", "{ \"0\": { \"obj_id\": 1, \"x\": 976, \"y\": 620, \"add\": true }}")
+self:SetData("POINTS", "{ \"0\": { \"obj_id\": 1, \"x\": 976, \"y\": 450, \"add\": true }}")
 
 PROGRAM_CONFIG = {
     port = 19078,
@@ -222,6 +222,7 @@ end
 
 function StartPropagation()
     Log("Starting propagation..")
+    SetStatus("PROPAGATING")
 
     if PROGRAM_CONFIG.session_id == -1 then
         Log("Can't propagate because session_id is -1")
@@ -240,6 +241,7 @@ end
 
 function StopPropagation()
     Log("Stopping propagation")
+    SetStatus("STOPPING")
 
     if PROGRAM_CONFIG.session_id == -1 then
         Log("Can't stop propagate because session_id is -1")
@@ -630,13 +632,13 @@ function Process(req)
         local retry = 0
 
         while masked_img == nil do
-            if retry >= 100 then
+            if retry >= 200 then
                 Log("Stopped trying to get the propagation frame.")
+                SetStatus("CAN'T GET FRAME.")
                 OutImage:Set(req, img)
                 StopPropagation()
                 return
             end
-
 
             masked_img = GetOutImage(req)
             os.execute("sleep 0.1")
