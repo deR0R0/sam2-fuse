@@ -161,6 +161,8 @@ async def delete(id: str):
     del sessions[session_id]
     print("Cleaned up: ", gc.collect())
 
+    return {"success": True, "message": "Deleted session succcessfully."}
+
 @app.get("/session/all")
 async def get_all_sessions():
     return {"success": True, "sessions": list(sessions.keys())}
