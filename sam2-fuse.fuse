@@ -37,6 +37,12 @@ if self ~= nil then
     self:SetData("PLAYBACK", false)
     self:SetData("FRAMES_PROCESSED", 0)
     self:SetData("POINTS", "{}")
+
+    -- var needed because resolve sucks
+    self:SetData("OFFSET_X", 0)
+    self:SetData("OFFSET_Y", 0)
+    self:SetData("IMG_WIDTH", 0)
+    self:SetData("IMG_HEIGHT", 0)
 end
 
 PROGRAM_CONFIG = {
@@ -513,6 +519,27 @@ function GetOutImage(req) -- thx akascape again!
     return nil
 end
 
+function AddPoint(time, add)
+    Log("Adding a point at time " .. time .. " with " .. add)
+    -- get the crosshair current pos and calculate proper coords
+    local centerX = self:GetData("OFFSET_X")
+    local centerY = self:GetData("OFFSET_Y")
+
+    local width = self:GetData("IMG_WIDTH")
+    local height = self:GetData("IMG_HEIGHT")
+
+    local point = {
+        obj_id = 1,
+        x = math.floor(centerX * width),
+        y = math.floor(centerY * height),
+        add = add
+    }
+
+    local prev_points = json.decode(self:GetData("POINTS"))
+    prev_points[tostring(time)] = point
+    self:SetData("POINTS", json.encode(prev_points))
+end
+
 function SetTime(req, time)
     req.Comp:Execute("comp.CurrentTime = " .. time)
 end
@@ -537,18 +564,24 @@ end
 function NotifyChanged(inp, param, time)
     if inp == InModel then
         CreateNewSession(nil, param.Value)
+        return
     end
 
     if inp == InTrackStartButton then
         self:SetData("EXPORTING", true)
+        return
     end
 
     if inp == InTrackStopButton then
         self:SetData("EXPORTING", false)
         self:SetData("FRAMES_PROCESSED", 0)
         self:SetData("PROPAGATING", false)
+        self:SetData("PLAYBACK", true)
         StopPropagation()
+        return
     end
+
+
 end
 
 function Process(req)
@@ -562,6 +595,13 @@ function Process(req)
     end
 
     local img = InImage:GetValue(req)
+
+    -- set the values
+    self:SetData("OFFSET_X", InObjOneOffset:GetValue(req).Value)
+    self:SetData("OFFSET_Y", InObjOneOffset:GetValue(req).Value)
+    self:SetData("IMG_WIDTH", img.Width)
+    self:SetData("IMG_HEIGHT", img.Height)
+
 
     if self:GetData("EXPORTING") then
         if self:GetData("EXPORT_FINISHED") then
