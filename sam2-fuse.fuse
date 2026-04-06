@@ -559,10 +559,12 @@ function GetOutImage(req) -- thx akascape again!
 end
 
 function AddPoint(time, add)
-    Log("Adding a point at time " .. time .. " with " .. add)
+    Log("Adding a point at time " .. time .. " with " .. tostring(add))
     -- get the crosshair current pos and calculate proper coords
     local centerX = self:GetData("OFFSET_X")
     local centerY = self:GetData("OFFSET_Y")
+
+    centerY = 1 - centerY -- flip the y coords. 0, 0 lies in the bottom left (???)
 
     local width = self:GetData("IMG_WIDTH")
     local height = self:GetData("IMG_HEIGHT")
@@ -573,6 +575,8 @@ function AddPoint(time, add)
         y = math.floor(centerY * height),
         add = add
     }
+
+    Log("Adding point: " .. json.encode(point))
 
     local prev_points = json.decode(self:GetData("POINTS"))
     prev_points[tostring(time)] = point
@@ -601,10 +605,16 @@ end
 
 -- do notify changed, according to sdk, is executed before process
 function NotifyChanged(inp, param, time)
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
+
     if inp == InModel then
         if param.Value ~= 0 then
             CreateNewSession(nil, param.Value)
         end
+        return
+    end
+
+    if PROGRAM_CONFIG.session_id == -1 then
         return
     end
 
@@ -622,7 +632,13 @@ function NotifyChanged(inp, param, time)
         return
     end
 
+    if inp == InObjOneFButton then
+        AddPoint(time, true)
+    end
 
+    if inp == InObjOneBButton then
+        AddPoint(time, false)
+    end
 end
 
 function Process(req)
@@ -632,15 +648,14 @@ function Process(req)
     --HeartBeat()
 
     if PROGRAM_CONFIG.session_id == -1 then
-        Log("Creating new session because nil")
-        --CreateNewSession(req, nil)
+        CreateNewSession(req, nil)
     end
 
     local img = InImage:GetValue(req)
 
     -- set the values
-    self:SetData("OFFSET_X", InObjOneOffset:GetValue(req).Value)
-    self:SetData("OFFSET_Y", InObjOneOffset:GetValue(req).Value)
+    self:SetData("OFFSET_X", InObjOneOffset:GetValue(req).X)
+    self:SetData("OFFSET_Y", InObjOneOffset:GetValue(req).Y)
     self:SetData("IMG_WIDTH", img.Width)
     self:SetData("IMG_HEIGHT", img.Height)
 
