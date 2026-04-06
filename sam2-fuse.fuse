@@ -26,7 +26,6 @@ FuRegisterClass('sam2fuse', CT_Tool, {
 
 local json = require("json")
 CONFIG = nil
-MODELS = nil
 DIRECTORY = ""
 
 if self ~= nil then
@@ -43,6 +42,9 @@ if self ~= nil then
     self:SetData("OFFSET_Y", 0)
     self:SetData("IMG_WIDTH", 0)
     self:SetData("IMG_HEIGHT", 0)
+
+    -- other stuff
+    self:SetData("MODELS", json.encode({ "-- SELECT MODEL --" }))
 end
 
 PROGRAM_CONFIG = {
@@ -165,7 +167,7 @@ function GetModels()
         return
     end
 
-    local avail_models = {}
+    local avail_models = json.decode(self:GetData("MODELS"))
 
     local models = CONFIG.models
 
@@ -176,7 +178,9 @@ function GetModels()
         end 
     end
 
-    return avail_models
+    Log("FULL MODELS: " .. json.encode(avail_models))
+
+    self:SetData("MODELS", json.encode(avail_models))
 end
 
 function CreateSpacer()
@@ -191,6 +195,24 @@ end
 
 function CreateNewSession(req, param_val)
     Log("Creating a new session...")
+
+    local MODELS = json.decode(self:GetData("MODELS"))
+
+    if MODELS == nil or #MODELS == 1 then
+        Log("MODELS aren't loaded correctly. Attempting to load again...")
+        GetModels()
+        MODELS = json.decode(self:GetData("MODELS"))
+        if MODELS == nil or MODELS == "" then
+            Log("Err while trying to load models.")
+            return
+        end
+    end
+
+    if req ~= nil and InModel:GetValue(req).Value == 0 then
+        return
+    elseif req == nil and param_val == 0 then
+        return
+    end
 
     -- if you already exist, delete the old session
     if PROGRAM_CONFIG.session_id ~= -1 then
@@ -299,8 +321,10 @@ function Create()
     -- load config
     LoadConfig()
 
-    MODELS = GetModels()
-
+    -- load our models and set them to the local var
+    GetModels()
+    local MODELS = json.decode(self:GetData("MODELS"))
+    
     -- create our ui components
 
     InConfigLabel = self:AddInput("Config Group", "CGroup", {
@@ -563,7 +587,9 @@ end
 -- do notify changed, according to sdk, is executed before process
 function NotifyChanged(inp, param, time)
     if inp == InModel then
-        CreateNewSession(nil, param.Value)
+        if param.Value ~= 0 then
+            CreateNewSession(nil, param.Value)
+        end
         return
     end
 
@@ -590,8 +616,8 @@ function Process(req)
     --HeartBeat()
 
     if PROGRAM_CONFIG.session_id == -1 then
-        Log("Creating new session")
-        CreateNewSession(req, nil)
+        Log("Creating new session because nil")
+        --CreateNewSession(req, nil)
     end
 
     local img = InImage:GetValue(req)
@@ -705,8 +731,10 @@ function Process(req)
 
     if self:GetData("PLAYBACK") then
         local masked_img = GetOutImage(req)
-        OutImage:Set(req, masked_img)
-        return
+        if masked_img ~= nil then
+            OutImage:Set(req, masked_img)
+            return
+        end
     end
 
     OutImage:Set(req, img)
