@@ -36,7 +36,7 @@ if self ~= nil then
     self:SetData("PROPAGATING_FINISHED", false)
     self:SetData("PLAYBACK", false)
     self:SetData("FRAMES_PROCESSED", 0)
-    self:SetData("POINTS", "{ \"0\": { \"obj_id\": 1, \"x\": 976, \"y\": 450, \"add\": true }}")
+    self:SetData("POINTS", "{}")
 end
 
 PROGRAM_CONFIG = {
@@ -259,8 +259,7 @@ function StopPropagation()
     Log("Got response after starting propagation: " .. response)
 end
 
-function AddPoints()
-    Log("Decoding: " .. self:GetData("POINTS"))
+function SendPoints()
     local points = json.decode(self:GetData("POINTS"))
 
     for i, point in pairs(points) do
@@ -274,7 +273,7 @@ function AddPoints()
 
         local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/point/add", "POST", "-H \"Content-Type: application/json\" -d '" .. json.encode(point_data) .. "'")
 
-        Log("Got response after adding point: " .. response)
+        Log("Got response after sending point: " .. response)
     end
 end
 
@@ -622,7 +621,7 @@ function Process(req)
 
         if frames_processed == 0 then
             Log("Propagating from the start")
-            AddPoints() -- add points wow
+            SendPoints() -- add points wow
             StartPropagation()
         end
 
