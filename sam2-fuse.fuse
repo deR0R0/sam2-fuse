@@ -29,14 +29,15 @@ CONFIG = nil
 MODELS = nil
 DIRECTORY = ""
 
-self:SetData("EXPORTING", false)
-self:SetData("EXPORT_FINISHED", false)
-self:SetData("PROPAGATING", false)
-self:SetData("PROPAGATING_FINISHED", false)
-self:SetData("PLAYBACK", false)
-self:SetData("FRAMES_PROCESSED", 0)
-
-self:SetData("POINTS", "{ \"0\": { \"obj_id\": 1, \"x\": 976, \"y\": 450, \"add\": true }}")
+if self ~= nil then
+    self:SetData("EXPORTING", false)
+    self:SetData("EXPORT_FINISHED", false)
+    self:SetData("PROPAGATING", false)
+    self:SetData("PROPAGATING_FINISHED", false)
+    self:SetData("PLAYBACK", false)
+    self:SetData("FRAMES_PROCESSED", 0)
+    self:SetData("POINTS", "{ \"0\": { \"obj_id\": 1, \"x\": 976, \"y\": 450, \"add\": true }}")
+end
 
 PROGRAM_CONFIG = {
     port = 19078,
