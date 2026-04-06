@@ -45,14 +45,12 @@ if self ~= nil then
 
     -- other stuff
     self:SetData("MODELS", json.encode({ "-- SELECT MODEL --" }))
+    self:SetData("PROGRAM_CONFIG", json.encode({
+        port = 19078,
+        session_id = -1,
+        last_model = -1
+    }))
 end
-
-PROGRAM_CONFIG = {
-    port = 19078,
-    session_id = -1,
-    last_model = -1
-}
-
 
 TOTAL_SPACERS = 0
 
@@ -110,6 +108,7 @@ function SendRequest(url, type, ...)
 end
 
 function EnsureSAM2Running()
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
     -- to make sure the sam2 server is running
     local result = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port, "GET")
     if result == "empty" then
@@ -196,6 +195,7 @@ end
 function CreateNewSession(req, param_val)
     Log("Creating a new session...")
 
+    -- load models and confirm they exist
     local MODELS = json.decode(self:GetData("MODELS"))
 
     if MODELS == nil or #MODELS == 1 then
@@ -213,6 +213,9 @@ function CreateNewSession(req, param_val)
     elseif req == nil and param_val == 0 then
         return
     end
+
+    -- get program conf
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
 
     -- if you already exist, delete the old session
     if PROGRAM_CONFIG.session_id ~= -1 then
@@ -244,6 +247,7 @@ function CreateNewSession(req, param_val)
 
     if response_json.session_id ~= nil then
         PROGRAM_CONFIG.session_id = response_json.session_id
+        self:SetData("PROGRAM_CONFIG", json.encode(PROGRAM_CONFIG))
     else
         Log("Could not create a session! Here's the response from the api: " .. response)
     end
@@ -252,6 +256,8 @@ end
 function StartPropagation()
     Log("Starting propagation..")
     SetStatus("PROPAGATING")
+
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
 
     if PROGRAM_CONFIG.session_id == -1 then
         Log("Can't propagate because session_id is -1")
@@ -272,6 +278,8 @@ function StopPropagation()
     Log("Stopping propagation")
     SetStatus("STOPPING")
 
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
+
     if PROGRAM_CONFIG.session_id == -1 then
         Log("Can't stop propagate because session_id is -1")
         return
@@ -290,6 +298,8 @@ end
 function SendPoints()
     local points = json.decode(self:GetData("POINTS"))
 
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
+
     for i, point in pairs(points) do
         local point_data = {
             frame = tonumber(i),
@@ -307,6 +317,7 @@ end
 
 function HeartBeat()
     Log("Sending heartbeat..")
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
     local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/beat", "POST")
     if response == "empty" then
         EnsureSAM2Running()
@@ -484,6 +495,8 @@ function ExportFrame(req, img)
     Log("EXPORTING FRAME " .. req.Time)
     SetStatus("EXPORTING FRAME " .. req.Time)
 
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
+
     if self:GetData("POINTS") == "{}" or nil then
         Log("User hasn't set points yet. Exiting..")
         SetStatus("NEED POINTS")
@@ -518,6 +531,8 @@ function ExportFrame(req, img)
 end
 
 function GetOutImage(req) -- thx akascape again!
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
+    
     if DIRECTORY == nil then
         Log("directory var is nil.. running config setup again.")
         LoadConfig()
@@ -612,6 +627,7 @@ end
 
 function Process(req)
     SetStatus("READY")
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
     -- TODO: remake the heartbeat system based on time to reduce a lil load off of the server
     --HeartBeat()
 
