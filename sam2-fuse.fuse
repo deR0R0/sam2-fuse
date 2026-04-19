@@ -195,6 +195,9 @@ end
 function CreateNewSession(req, param_val)
     Log("Creating a new session...")
 
+    -- ensure the server is running
+    EnsureSAM2Running()
+
     -- load models and confirm they exist
     local MODELS = json.decode(self:GetData("MODELS"))
 
@@ -594,7 +597,6 @@ function RemovePoint(time)
 end
 
 function RefreshPointsDisplay()
-    Log(self:GetData("POINTS"))
     local points = json.decode(self:GetData("POINTS"))
     local lines = {}
     for frame, pt in pairs(points) do
@@ -672,7 +674,7 @@ function Process(req)
     SetStatus("READY")
     local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
     -- TODO: remake the heartbeat system based on time to reduce a lil load off of the server
-    --HeartBeat()
+    HeartBeat()
 
     if PROGRAM_CONFIG.session_id == -1 then
         CreateNewSession(req, nil)
