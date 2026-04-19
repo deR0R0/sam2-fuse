@@ -391,11 +391,14 @@ function Create()
     CreateSpacer()
 
     -- we're going to have a dropdown of all the refinements
-    InObjOnePoints = self:AddInput("Points", "ObjOnePoints", {
-        LINKID_DataType = "Number",
-        INPID_InputControl = "ComboControl",
-        INP_Default = 0.0,
-        INP_Integer = true,
+    InObjOnePoints = self:AddInput("Points List", "ObjOnePoints", {
+        LINKID_DataType = "Text",
+        INPID_InputControl = "TextEditControl",
+        INPS_DefaultText = "No points added yet.",
+        TEC_ReadOnly = true,
+        INP_External = false,
+        INP_Passive = true,
+        TEC_Lines = 5,
     })
 
     InObjOnePointsDelete = self:AddInput("Delete Point", "ObjOneDelPoint", {
@@ -583,6 +586,26 @@ function AddPoint(time, add)
     self:SetData("POINTS", json.encode(prev_points))
 end
 
+function RemovePoint(time)
+    Log("Removing Points at time " .. tostring(time))
+    local points = json.decode(self:GetData("POINTS"))
+    points[tostring(time)] = nil
+    self:SetData("POINTS", json.encode(points))
+end
+
+function RefreshPointsDisplay()
+    Log(self:GetData("POINTS"))
+    local points = json.decode(self:GetData("POINTS"))
+    local lines = {}
+    for frame, pt in pairs(points) do
+        local type_str = pt.add and "FG" or "BG"
+        table.insert(lines, "Frame " .. frame .. " | " .. type_str .. " | (" .. pt.x .. ", " .. pt.y .. ")")
+    end
+    table.sort(lines)
+    local display = #lines > 0 and table.concat(lines, "\n") or "No points."
+    InObjOnePoints:SetSource(Text(display), 0, 0)
+end
+
 function SetTime(req, time)
     req.Comp:Execute("comp.CurrentTime = " .. time)
 end
@@ -639,6 +662,10 @@ function NotifyChanged(inp, param, time)
     if inp == InObjOneBButton then
         AddPoint(time, false)
     end
+
+    if inp == InObjOnePointsDelete then
+        RemovePoint(time)
+    end
 end
 
 function Process(req)
@@ -658,6 +685,9 @@ function Process(req)
     self:SetData("OFFSET_Y", InObjOneOffset:GetValue(req).Y)
     self:SetData("IMG_WIDTH", img.Width)
     self:SetData("IMG_HEIGHT", img.Height)
+
+    -- set the points field stuff
+    RefreshPointsDisplay()
 
 
     if self:GetData("EXPORTING") then
