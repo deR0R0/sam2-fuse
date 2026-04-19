@@ -68,7 +68,7 @@ class Session:
 
         self.cleanup()
 
-        shutil.rmtree(self.directory)
+        shutil.rmtree(f"{self.directory}/input/") # delete all INPUT so output can remain.
 
     def cleanup(self):
         """
