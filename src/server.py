@@ -179,6 +179,10 @@ async def heartbeat_beat():
     last_heartbeat = time.time()
     return {"success": True}
 
+@app.post("/shutdown")
+async def shutdown():
+    shutdown_server()
+
 """
 THE FOLLOWING ENDPOINTS ARE FOR DEBUGGING PURPOSES. THEY WILL NOT BE USED
 """
