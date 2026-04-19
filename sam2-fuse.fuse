@@ -125,6 +125,9 @@ function EnsureSAM2Running()
 
         local cd_command = "cd \"" .. directory .. "\" && "
         local py_command = "\"" .. py_path .. "\" -m uvicorn src.server:app --port " .. PROGRAM_CONFIG.port -- lets just hope this port isn't taken...
+        if DEBUG then
+            py_command = "\"" .. py_path .. "\" -m uvicorn src.server:app --port " .. PROGRAM_CONFIG.port .. " > server_logs.txt"
+        end
         local command = cd_command .. py_command .. " &"
 
         Log("Running server launch command: " .. command)
@@ -322,6 +325,15 @@ function HeartBeat()
     Log("Sending heartbeat..")
     local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
     local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/heartbeat/beat", "POST")
+    if response == "empty" then
+        EnsureSAM2Running()
+    end
+end
+
+function Reset()
+    Log("Resetting the output directory...")
+    local PROGRAM_CONFIG = json.decode(self:GetData("PROGRAM_CONFIG"))
+    local response = SendRequest("http://localhost:" .. PROGRAM_CONFIG.port .. "/session/" .. PROGRAM_CONFIG.session_id .. "/reset", "POST")
     if response == "empty" then
         EnsureSAM2Running()
     end
@@ -644,6 +656,7 @@ function NotifyChanged(inp, param, time)
     end
 
     if inp == InTrackStartButton then
+        Reset()
         self:SetData("EXPORTING", true)
         return
     end

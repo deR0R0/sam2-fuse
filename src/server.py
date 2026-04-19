@@ -163,6 +163,19 @@ async def delete(id: str):
 
     return {"success": True, "message": "Deleted session succcessfully."}
 
+@app.post("/session/{id}/reset")
+async def reset(id: str):
+    session_id = int(id)
+    if session_id not in sessions:
+        return {"success": False, "message": "Session not found"}
+    
+    session = sessions[session_id]
+
+    session.reset()
+
+    return {"success": True, "message": "Reset session successfully."}
+
+
 @app.get("/session/all")
 async def get_all_sessions():
     return {"success": True, "sessions": list(sessions.keys())}

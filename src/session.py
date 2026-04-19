@@ -91,6 +91,13 @@ class Session:
         elif self.device == "mps":
             torch.mps.empty_cache()
 
+    def reset(self):
+        """
+        "Resets" by deleting the output directory for the client to re-propagate.
+        """
+
+        shutil.rmtree(f"{self.directory}/output/")
+
     def _make_directory(self):
         """
         This is required to make the directory full of JPEG files...
