@@ -245,7 +245,9 @@ class Session:
             mask = (result[2][0] > 0).cpu().numpy().squeeze() # type: ignore
 
             # combine the masks together
-            mask_img = Image.fromarray((mask * 255).astype(np.uint8))
+            mask_img = Image.fromarray(frame).convert("RGBA")
+            alpha = Image.fromarray((mask * 255).astype(np.uint8), mode="L")
+            mask_img.putalpha(alpha)
 
             # instead of returning in the api, we save to disk instead
             mask_img.save(f"{self.directory}output/{frame_idx:05d}.png")
