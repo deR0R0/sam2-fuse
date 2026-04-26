@@ -16,7 +16,7 @@ A Davinci Resolve "plugin" (fuse) that allows for faster workflows by masking ea
 
 # 🎬 Demo
 
-
+https://github.com/user-attachments/assets/835c9805-ff14-4e19-9014-e3ba0e7ca733
 
 # ⬇️ Installation
 
